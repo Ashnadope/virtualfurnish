@@ -14,7 +14,28 @@ export async function POST(request) {
           error: 'OpenAI API key is not configured. Please add OPENAI_API_KEY to your environment variables.',
           success: false 
         },
-        { status: 500 }
+        { 
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        }
+      );
+    }
+
+    // Validate OpenAI client initialization
+    if (!openai) {
+      return NextResponse?.json(
+        { 
+          error: 'OpenAI client failed to initialize. Please check your API configuration.',
+          success: false 
+        },
+        { 
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        }
       );
     }
 
@@ -23,7 +44,12 @@ export async function POST(request) {
     if (!imageUrl) {
       return NextResponse?.json(
         { error: 'Image URL is required', success: false },
-        { status: 400 }
+        { 
+          status: 400,
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        }
       );
     }
 
@@ -68,44 +94,53 @@ export async function POST(request) {
       max_tokens: 2000
     });
 
-    const analysis = JSON.parse(response?.choices?.[0]?.message?.content);
+    const analysis = JSON.parse(response?.choices?.[0]?.message?.content || '{}');
 
-    return NextResponse?.json({
-      success: true,
-      analysis
-    });
+    return NextResponse?.json(
+      {
+        success: true,
+        analysis
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      }
+    );
   } catch (error) {
     console.error('Error analyzing room:', error);
     
+    // Build detailed error message
+    let errorMessage = 'Failed to analyze room image. Please try again.';
+    let statusCode = 500;
+    
     // Handle specific OpenAI errors
     if (error?.status === 429) {
-      return NextResponse?.json(
-        { error: 'Rate limit exceeded. Please try again later.', success: false },
-        { status: 429 }
-      );
-    }
-    
-    if (error?.status === 401 || error?.code === 'invalid_api_key') {
-      return NextResponse?.json(
-        { error: 'Invalid OpenAI API key. Please check your configuration.', success: false },
-        { status: 401 }
-      );
-    }
-
-    if (error?.code === 'model_not_found') {
-      return NextResponse?.json(
-        { error: 'The AI model is not available. Please try again later.', success: false },
-        { status: 503 }
-      );
+      errorMessage = 'Rate limit exceeded. Please try again later.';
+      statusCode = 429;
+    } else if (error?.status === 401 || error?.code === 'invalid_api_key') {
+      errorMessage = 'Invalid OpenAI API key. Please check your OPENAI_API_KEY environment variable.';
+      statusCode = 401;
+    } else if (error?.code === 'model_not_found') {
+      errorMessage = 'The AI model is not available. Please try again later.';
+      statusCode = 503;
+    } else if (error?.message) {
+      errorMessage = error?.message;
     }
 
-    // Generic error response - ensure JSON format
+    // Always return JSON, even for errors
     return NextResponse?.json(
       { 
-        error: error?.message || 'Failed to analyze room image. Please try again.',
-        success: false 
+        error: errorMessage,
+        success: false,
+        details: process.env.NODE_ENV === 'development' ? error?.message : undefined
       },
-      { status: 500 }
+      { 
+        status: statusCode,
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      }
     );
   }
 }

@@ -511,6 +511,7 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
                   onFurnitureRotate={handleFurnitureRotate}
                   onFurnitureScale={handleFurnitureScale}
                   onFurnitureDelete={handleFurnitureDelete}
+                  onAddFurniture={handleAddFurniture}
                   showAISuggestions={showAISuggestions}
                   aiSuggestionType={aiSuggestionType}
                 />

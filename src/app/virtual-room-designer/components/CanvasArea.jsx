@@ -14,6 +14,7 @@ export default function CanvasArea({
   onFurnitureRotate,
   onFurnitureScale,
   onFurnitureDelete,
+  onAddFurniture,
   showAISuggestions,
   aiSuggestionType
 }) {
@@ -276,15 +277,8 @@ export default function CanvasArea({
           const boundedX = Math.max(0, Math.min(95, x));
           const boundedY = Math.max(0, Math.min(95, y));
           
-          const newFurniture = {
-            ...furniture,
-            id: `${furniture?.id}-${Date.now()}`,
-            position: { x: boundedX, y: boundedY },
-            rotation: 0,
-            scale: 1
-          };
-          
-          onFurnitureSelect(newFurniture?.id);
+          // Call onAddFurniture with furniture data and position
+          onAddFurniture(furniture, { x: boundedX, y: boundedY });
         }
       }
     } catch (error) {
@@ -573,6 +567,7 @@ CanvasArea.propTypes = {
   onFurnitureRotate: PropTypes?.func?.isRequired,
   onFurnitureScale: PropTypes?.func?.isRequired,
   onFurnitureDelete: PropTypes?.func?.isRequired,
+  onAddFurniture: PropTypes?.func?.isRequired,
   showAISuggestions: PropTypes?.bool?.isRequired,
   aiSuggestionType: PropTypes?.string
 };
