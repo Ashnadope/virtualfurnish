@@ -1,0 +1,141 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import Icon from '@/components/ui/AppIcon';
+import { cartService } from '@/services/cart.service';
+
+export default function Header({ userRole = 'customer', userName = 'Guest User' }) {
+  const pathname = usePathname();
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [cartCount, setCartCount] = useState(0);
+
+  useEffect(() => {
+    if (userRole === 'customer') {
+      loadCartCount();
+    }
+  }, [userRole, pathname]);
+
+  const loadCartCount = async () => {
+    const { count } = await cartService?.getCartCount();
+    setCartCount(count);
+  };
+
+  const customerNavigation = [
+    { label: 'Home', path: '/landing-page' },
+    { label: 'Dashboard', path: '/customer-dashboard' },
+    { label: 'Room Designer', path: '/virtual-room-designer' },
+    { label: 'My Orders', path: '/customer-dashboard' },
+  ];
+
+  const adminNavigation = [
+    { label: 'Home', path: '/landing-page' },
+    { label: 'Dashboard', path: '/admin-dashboard' },
+    { label: 'Products', path: '/product-management' },
+    { label: 'Analytics', path: '/analytics-dashboard' },
+  ];
+
+  const navigation = userRole === 'admin' ? adminNavigation : customerNavigation;
+
+  const isActive = (path) => pathname === path;
+
+  const toggleProfile = () => setIsProfileOpen(!isProfileOpen);
+
+  return (
+    <header className="fixed top-0 left-0 right-0 h-16 bg-surface border-b border-border z-sidebar">
+      <div className="flex items-center justify-between h-full px-6">
+        <div className="flex items-center gap-8">
+          <Link href={userRole === 'admin' ? '/admin-dashboard' : '/customer-dashboard'} className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M3 7L10 3L17 7V15L10 19L3 15V7Z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M10 11L14 9" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <div className="flex flex-col">
+              <span className="font-heading font-semibold text-sm text-foreground">Brosas</span>
+              <span className="font-body text-xs text-muted-foreground">Furniture Store</span>
+            </div>
+          </Link>
+
+          <nav className="hidden md:flex items-center gap-1">
+            {navigation?.map((item) => (
+              <Link
+                key={item?.path}
+                href={item?.path}
+                className={`
+                  px-4 py-2 rounded-md font-body text-nav transition-fast
+                  ${isActive(item?.path)
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-foreground hover:bg-muted'
+                  }
+                `}
+              >
+                {item?.label}
+              </Link>
+            ))}
+          </nav>
+        </div>
+
+        <div className="flex items-center gap-4">
+          {userRole === 'customer' && (
+            <Link
+              href="/cart"
+              className="relative p-2 rounded-md hover:bg-muted transition-fast"
+              aria-label="Shopping cart"
+            >
+              <Icon name="ShoppingCartIcon" size={24} variant="outline" />
+              {cartCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-accent text-accent-foreground text-xs font-semibold w-5 h-5 rounded-full flex items-center justify-center">
+                  {cartCount}
+                </span>
+              )}
+            </Link>
+          )}
+
+          <div className="relative">
+            <button
+              onClick={toggleProfile}
+              className="flex items-center gap-2 p-2 rounded-md hover:bg-muted transition-fast"
+              aria-label="User menu"
+            >
+              <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
+                <span className="text-primary-foreground font-heading font-semibold text-sm">
+                  {userName?.charAt(0)?.toUpperCase()}
+                </span>
+              </div>
+              <Icon name="ChevronDownIcon" size={16} variant="outline" />
+            </button>
+
+            {isProfileOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-dropdown"
+                  onClick={toggleProfile}
+                  aria-hidden="true"
+                />
+                <div className="absolute right-0 mt-2 w-56 bg-popover border border-border rounded-lg shadow-elevated z-overlay animate-slide-in">
+                  <div className="px-4 py-3 border-b border-border">
+                    <p className="font-body font-medium text-sm text-popover-foreground">{userName}</p>
+                    <p className="font-body text-xs text-muted-foreground capitalize">{userRole}</p>
+                  </div>
+                  <div className="py-2">
+                    <Link
+                      href="/login"
+                      className="flex items-center gap-3 px-4 py-2 text-sm text-popover-foreground hover:bg-muted transition-fast"
+                      onClick={toggleProfile}
+                    >
+                      <Icon name="ArrowRightOnRectangleIcon" size={18} variant="outline" />
+                      <span>Logout</span>
+                    </Link>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+}
