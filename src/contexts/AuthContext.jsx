@@ -1,7 +1,6 @@
-
-'use client'
-import React, { createContext, useContext, useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+'use client';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabase';
 
 const AuthContext = createContext(null)
 
@@ -18,6 +17,27 @@ export const AuthProvider = ({ children }) => {
   const [userProfile, setUserProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [profileLoading, setProfileLoading] = useState(false)
+
+  // Derive userRole from user metadata or email
+  const getUserRole = (authUser, profile) => {
+    // Check user metadata first
+    if (authUser?.user_metadata?.role) {
+      return authUser?.user_metadata?.role;
+    }
+    
+    // Check if email suggests admin (e.g., contains 'admin' or specific domain)
+    if (authUser?.email?.includes('admin')) {
+      return 'admin';
+    }
+    
+    // Check profile for role information
+    if (profile?.role) {
+      return profile?.role;
+    }
+    
+    // Default to customer
+    return 'customer';
+  }
 
   const profileOperations = {
     async load(userId) {
@@ -95,9 +115,17 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
+  // Derive userRole from user and userProfile
+  const userRole = getUserRole(user, userProfile);
+
   const value = {
-    user,
+    user: user ? {
+      ...user,
+      name: userProfile?.first_name || user?.email?.split('@')?.[0] || 'User',
+      email: user?.email
+    } : null,
     userProfile,
+    userRole,
     loading,
     profileLoading,
     signIn,
@@ -108,4 +136,3 @@ export const AuthProvider = ({ children }) => {
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
-                  

@@ -5,8 +5,13 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
 import { cartService } from '@/services/cart.service';
+import { useAuth } from '../../hooks/auth.hook';
+import { useRouter } from 'next/router';
 
-export default function Header({ userRole = 'customer', userName = 'Guest User' }) {
+export default function Header() {
+  const { user, userRole, signOut } = useAuth();
+  const router = useRouter();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const pathname = usePathname();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [cartCount, setCartCount] = useState(0);
@@ -21,6 +26,27 @@ export default function Header({ userRole = 'customer', userName = 'Guest User' 
     const { count } = await cartService?.getCartCount();
     setCartCount(count);
   };
+
+  const navigationLinks = [
+    { 
+      name: 'Home', 
+      path: '/', 
+      icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6',
+      roles: ['customer', 'admin', 'guest']
+    },
+    { 
+      name: 'Catalog', 
+      path: '/furniture-catalog', 
+      icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10',
+      roles: ['customer', 'admin', 'guest']
+    },
+    { 
+      name: 'Dashboard', 
+      path: userRole === 'customer' ? '/customer-dashboard' : '/admin-dashboard', 
+      icon: 'M4 5a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 16a1 1 0 011-1h4a1 1 0 011 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1v-3zM14 13a1 1 0 011-1h4a1 1 0 011 1v6a1 1 0 01-1 1h-4a1 1 0 01-1-1v-6z',
+      roles: ['customer', 'admin']
+    },
+  ];
 
   const customerNavigation = [
     { label: 'Home', path: '/landing-page' },
@@ -59,7 +85,7 @@ export default function Header({ userRole = 'customer', userName = 'Guest User' 
             </div>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-1">
+          <nav className="hidden md:flex items-center space-x-6">
             {navigation?.map((item) => (
               <Link
                 key={item?.path}
@@ -75,6 +101,15 @@ export default function Header({ userRole = 'customer', userName = 'Guest User' 
                 {item?.label}
               </Link>
             ))}
+            
+            {userRole === 'customer' && (
+              <Link
+                href="/order-history"
+                className="px-4 py-2 rounded-md font-body text-nav text-foreground hover:bg-muted transition-fast"
+              >
+                Orders
+              </Link>
+            )}
           </nav>
         </div>
 
@@ -102,7 +137,7 @@ export default function Header({ userRole = 'customer', userName = 'Guest User' 
             >
               <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
                 <span className="text-primary-foreground font-heading font-semibold text-sm">
-                  {userName?.charAt(0)?.toUpperCase()}
+                  {user?.name?.charAt(0)?.toUpperCase()}
                 </span>
               </div>
               <Icon name="ChevronDownIcon" size={16} variant="outline" />
@@ -117,7 +152,7 @@ export default function Header({ userRole = 'customer', userName = 'Guest User' 
                 />
                 <div className="absolute right-0 mt-2 w-56 bg-popover border border-border rounded-lg shadow-elevated z-overlay animate-slide-in">
                   <div className="px-4 py-3 border-b border-border">
-                    <p className="font-body font-medium text-sm text-popover-foreground">{userName}</p>
+                    <p className="font-body font-medium text-sm text-popover-foreground">{user?.name}</p>
                     <p className="font-body text-xs text-muted-foreground capitalize">{userRole}</p>
                   </div>
                   <div className="py-2">

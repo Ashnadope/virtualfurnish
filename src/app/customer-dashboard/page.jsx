@@ -3,6 +3,9 @@ import Header from '@/components/common/Header';
 import Breadcrumb from '@/components/common/Breadcrumb';
 import CustomerDashboardInteractive from './components/CustomerDashboardInteractive';
 
+// Force dynamic rendering to prevent prerendering during build
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: 'Customer Dashboard - VirtualFurnish',
   description: 'Access virtual room design tools, browse furniture catalog, and manage your orders at Brosas Furniture Store.'

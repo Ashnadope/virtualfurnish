@@ -1,4 +1,10 @@
+
+
+
 import VirtualRoomDesignerInteractive from './components/VirtualRoomDesignerInteractive';
+
+// Force dynamic rendering to prevent prerendering during build
+export const dynamic = 'force-dynamic';
 
 export const metadata = {
   title: 'Virtual Room Designer - VirtualFurnish',

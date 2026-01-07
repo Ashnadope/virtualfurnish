@@ -1,11 +1,14 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
- import StripePaymentForm from'@/components/payment/StripePaymentForm';
- import GCashPaymentForm from'@/components/payment/GCashPaymentForm';
+import StripePaymentForm from '@/components/payment/StripePaymentForm';
+import GCashPaymentForm from '@/components/payment/GCashPaymentForm';
 import { createClient } from '@/lib/supabase/client';
 import { paymentService } from '@/services/payment.service';
- import Header from'@/components/common/Header';
+import Header from '@/components/common/Header';
+
+// Force dynamic rendering to prevent prerendering during build
+export const dynamic = 'force-dynamic';
 
 export default function CheckoutPage() {
   const router = useRouter()
@@ -22,54 +25,47 @@ export default function CheckoutPage() {
       try {
         const supabase = createClient()
         
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        const { data: { user }, error: authError } = await supabase?.auth?.getUser()
         if (authError || !user) {
-          router.push('/login')
+          router?.push('/login')
           return
         }
 
-        const { data: cartData, error: cartError } = await supabase
-          .from('cart_items')
-          .select('*, products(*), product_variants(*)')
-          .eq('user_id', user.id)
+        const { data: cartData, error: cartError } = await supabase?.from('cart_items')?.select('*, products(*), product_variants(*)')?.eq('user_id', user?.id)
 
-        if (cartError || !cartData || cartData.length === 0) {
+        if (cartError || !cartData || cartData?.length === 0) {
           setError('Your cart is empty. Please add items before checkout.')
           return
         }
 
         setCartItems(cartData)
 
-        const { data: profile, error: profileError } = await supabase
-          .from('user_profiles')
-          .select('*, addresses(*)')
-          .eq('id', user.id)
-          .single()
+        const { data: profile, error: profileError } = await supabase?.from('user_profiles')?.select('*, addresses(*)')?.eq('id', user?.id)?.single()
 
         if (profileError) {
           setError('Failed to load user profile')
           return
         }
 
-        const items = cartData.map(item => ({
-          id: item.product_id,
-          product_id: item.product_id,
-          name: item.products?.name || 'Product',
-          brand: item.products?.brand || '',
-          price: parseFloat(item.price) || 0,
-          quantity: item.quantity,
-          variant_id: item.variant_id,
-          variant_name: item.product_variants?.name || '',
-          sku: item.product_variants?.sku || item.products?.sku || ''
+        const items = cartData?.map(item => ({
+          id: item?.product_id,
+          product_id: item?.product_id,
+          name: item?.products?.name || 'Product',
+          brand: item?.products?.brand || '',
+          price: parseFloat(item?.price) || 0,
+          quantity: item?.quantity,
+          variant_id: item?.variant_id,
+          variant_name: item?.product_variants?.name || '',
+          sku: item?.product_variants?.sku || item?.products?.sku || ''
         }))
 
-        const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+        const subtotal = items?.reduce((sum, item) => sum + (item?.price * item?.quantity), 0)
         const tax = subtotal * 0.12 // 12% VAT for Philippines
         const shippingCost = 0
         const total = subtotal + tax + shippingCost
 
-        const billingAddress = profile?.addresses?.find(a => a.type === 'billing' && a.is_default) 
-          || profile?.addresses?.find(a => a.type === 'billing')
+        const billingAddress = profile?.addresses?.find(a => a?.type === 'billing' && a?.is_default) 
+          || profile?.addresses?.find(a => a?.type === 'billing')
           || profile?.addresses?.[0]
 
         if (!billingAddress) {
@@ -78,25 +74,25 @@ export default function CheckoutPage() {
         }
 
         const customerData = {
-          userId: user.id,
-          firstName: profile.first_name || '',
-          lastName: profile.last_name || '',
-          email: profile.email || user.email || '',
-          phone: profile.phone || '',
-          stripeCustomerId: profile.stripe_customer_id,
+          userId: user?.id,
+          firstName: profile?.first_name || '',
+          lastName: profile?.last_name || '',
+          email: profile?.email || user?.email || '',
+          phone: profile?.phone || '',
+          stripeCustomerId: profile?.stripe_customer_id,
           billing: {
-            address_line_1: billingAddress.address_line_1,
-            address_line_2: billingAddress.address_line_2,
-            city: billingAddress.city,
-            state: billingAddress.state,
-            postal_code: billingAddress.postal_code,
-            country: billingAddress.country || 'PH'
+            address_line_1: billingAddress?.address_line_1,
+            address_line_2: billingAddress?.address_line_2,
+            city: billingAddress?.city,
+            state: billingAddress?.state,
+            postal_code: billingAddress?.postal_code,
+            country: billingAddress?.country || 'PH'
           }
         }
 
-        const validationErrors = paymentService.validatePhilippineCompliance(customerData)
-        if (validationErrors.length > 0) {
-          setError(validationErrors.join(', '))
+        const validationErrors = paymentService?.validatePhilippineCompliance(customerData)
+        if (validationErrors?.length > 0) {
+          setError(validationErrors?.join(', '))
           return
         }
 
@@ -114,18 +110,18 @@ export default function CheckoutPage() {
 
         // Only create payment intent for card payments
         if (paymentMethod === 'card') {
-          const paymentData = await paymentService.createPaymentIntent(
+          const paymentData = await paymentService?.createPaymentIntent(
             orderPayload, 
             customerData, 
             'card'
           )
 
           if (paymentData?.clientSecret) {
-            setClientSecret(paymentData.clientSecret)
+            setClientSecret(paymentData?.clientSecret)
             setOrderData(prev => ({
               ...prev,
-              orderId: paymentData.orderId,
-              orderNumber: paymentData.orderNumber
+              orderId: paymentData?.orderId,
+              orderNumber: paymentData?.orderNumber
             }))
           } else {
             setError('Failed to initialize payment')
@@ -134,7 +130,7 @@ export default function CheckoutPage() {
 
       } catch (err) {
         console.error('Checkout initialization error:', err)
-        setError(err.message || 'Failed to initialize checkout')
+        setError(err?.message || 'Failed to initialize checkout')
       } finally {
         setLoading(false)
       }
@@ -146,16 +142,16 @@ export default function CheckoutPage() {
   const handlePaymentSuccess = async (result) => {
     try {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: { user } } = await supabase?.auth?.getUser()
       
       if (user) {
-        await supabase.from('cart_items').delete().eq('user_id', user.id)
+        await supabase?.from('cart_items')?.delete()?.eq('user_id', user?.id)
       }
       
-      router.push(`/checkout/success?order=${result.orderNumber}`)
+      router?.push(`/checkout/success?order=${result?.orderNumber}`)
     } catch (err) {
       console.error('Post-payment cleanup error:', err)
-      router.push(`/checkout/success?order=${result.orderNumber}`)
+      router?.push(`/checkout/success?order=${result?.orderNumber}`)
     }
   }
 
@@ -186,13 +182,13 @@ export default function CheckoutPage() {
               <p className="text-red-600 mb-4">{error}</p>
               <div className="flex gap-4">
                 <button
-                  onClick={() => router.push('/cart')}
+                  onClick={() => router?.push('/cart')}
                   className="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 transition-colors"
                 >
                   Back to Cart
                 </button>
                 <button
-                  onClick={() => router.push('/customer-dashboard')}
+                  onClick={() => router?.push('/customer-dashboard')}
                   className="bg-gray-200 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-300 transition-colors"
                 >
                   Dashboard
@@ -202,7 +198,7 @@ export default function CheckoutPage() {
           </div>
         </div>
       </>
-    )
+    );
   }
 
   return (
@@ -222,12 +218,12 @@ export default function CheckoutPage() {
                 
                 <div className="space-y-4 mb-6">
                   {cartItems?.map((item) => (
-                    <div key={item.id} className="flex gap-3">
+                    <div key={item?.id} className="flex gap-3">
                       <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                        {item.products?.image_url ? (
+                        {item?.products?.image_url ? (
                           <img 
-                            src={item.products.image_url} 
-                            alt={item.products?.name || 'Product'}
+                            src={item?.products?.image_url} 
+                            alt={item?.products?.name || 'Product'}
                             className="w-full h-full object-cover"
                           />
                         ) : (
@@ -240,13 +236,13 @@ export default function CheckoutPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 truncate">
-                          {item.products?.name || 'Product'}
+                          {item?.products?.name || 'Product'}
                         </p>
                         <p className="text-xs text-gray-500">
-                          Qty: {item.quantity}
+                          Qty: {item?.quantity}
                         </p>
                         <p className="text-sm font-semibold text-gray-900">
-                          ₱{(parseFloat(item.price) * item.quantity).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                          ₱{(parseFloat(item?.price) * item?.quantity)?.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                         </p>
                       </div>
                     </div>
@@ -326,7 +322,7 @@ export default function CheckoutPage() {
                 {paymentMethod === 'card' && clientSecret && orderData && customerInfo && (
                   <StripePaymentForm
                     clientSecret={clientSecret}
-                    amount={orderData.amount}
+                    amount={orderData?.amount}
                     currency="PHP"
                     orderData={orderData}
                     customerInfo={customerInfo}
@@ -337,7 +333,7 @@ export default function CheckoutPage() {
 
                 {paymentMethod === 'gcash' && orderData && customerInfo && (
                   <GCashPaymentForm
-                    amount={orderData.amount}
+                    amount={orderData?.amount}
                     currency="PHP"
                     orderData={orderData}
                     customerInfo={customerInfo}
@@ -369,5 +365,5 @@ export default function CheckoutPage() {
         </div>
       </div>
     </>
-  )
+  );
 }

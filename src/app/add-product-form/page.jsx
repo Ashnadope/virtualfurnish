@@ -1,7 +1,10 @@
-import Header from '@/components/common/Header';
 import Sidebar from '@/components/common/Sidebar';
+import Header from '@/components/common/Header';
 import Breadcrumb from '@/components/common/Breadcrumb';
 import AddProductFormInteractive from './components/AddProductFormInteractive';
+
+// Force dynamic rendering to prevent prerendering during build
+export const dynamic = 'force-dynamic';
 
 export const metadata = {
   title: 'Add Product Form - Brosas Furniture Store',

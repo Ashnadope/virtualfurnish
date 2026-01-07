@@ -3,6 +3,9 @@ import Header from '@/components/common/Header';
 import Breadcrumb from '@/components/common/Breadcrumb';
 import ProductManagementInteractive from './components/ProductManagementInteractive';
 
+// Force dynamic rendering to prevent prerendering during build
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: 'Product Management - VirtualFurnish',
   description: 'Manage furniture inventory, add new products, update stock levels, and control product catalog for Brosas Furniture Store'

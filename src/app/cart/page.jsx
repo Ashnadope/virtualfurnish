@@ -3,6 +3,9 @@ import Header from '@/components/common/Header';
 import Breadcrumb from '@/components/common/Breadcrumb';
 import CartInteractive from './components/CartInteractive';
 
+// Force dynamic rendering to prevent prerendering during build
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: 'Shopping Cart - VirtualFurnish',
   description: 'Review your selected furniture items and proceed to checkout at Brosas Furniture Store.'

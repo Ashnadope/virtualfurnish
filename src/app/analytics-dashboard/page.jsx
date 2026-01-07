@@ -3,6 +3,9 @@ import Header from '@/components/common/Header';
 import Breadcrumb from '@/components/common/Breadcrumb';
 import AnalyticsInteractive from './components/AnalyticsInteractive';
 
+// Force dynamic rendering to prevent prerendering during build
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: 'Analytics Dashboard - VirtualFurnish',
   description: 'Comprehensive business insights and performance metrics for data-driven decision making at Brosas Furniture Store'

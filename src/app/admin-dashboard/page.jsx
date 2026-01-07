@@ -3,6 +3,9 @@ import Header from '@/components/common/Header';
 import Breadcrumb from '@/components/common/Breadcrumb';
 import AdminDashboardInteractive from './components/AdminDashboardInteractive';
 
+// Force dynamic rendering to prevent prerendering during build
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: 'Admin Dashboard - VirtualFurnish',
   description: 'Monitor business operations, manage inventory, process orders, and access analytics for Brosas Furniture Store.'
