@@ -16,7 +16,6 @@ export default function CartInteractive() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [updating, setUpdating] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(true);
 
   useEffect(() => {
     loadCartItems();
@@ -26,13 +25,12 @@ export default function CartInteractive() {
     setLoading(true);
     setError(null);
     
-    const { data, error: fetchError, isAuthenticated: authStatus } = await cartService?.getCartItems();
+    const { data, error: fetchError } = await cartService?.getCartItems();
     
     if (fetchError) {
       setError(fetchError);
     } else {
       setCartItems(data || []);
-      setIsAuthenticated(authStatus !== false);
     }
     
     setLoading(false);
@@ -107,29 +105,6 @@ export default function CartInteractive() {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
-  // Show login prompt for unauthenticated users
-  if (!isAuthenticated) {
-    return (
-      <div className="max-w-2xl mx-auto text-center py-12">
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-8">
-          <Icon name="ShoppingCartIcon" size={48} variant="outline" className="text-blue-600 mx-auto mb-4" />
-          <h2 className="font-heading text-2xl font-semibold text-blue-900 mb-2">
-            Please Sign In
-          </h2>
-          <p className="font-body text-blue-700 mb-6">
-            You need to be logged in to view your shopping cart and make purchases.
-          </p>
-          <button
-            onClick={() => router?.push('/login')}
-            className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-fast font-medium"
-          >
-            Sign In to Continue
-          </button>
-        </div>
       </div>
     );
   }
