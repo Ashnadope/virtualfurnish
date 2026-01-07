@@ -14,7 +14,8 @@ export const cartService = {
       const { data: { user }, error: authError } = await supabase?.auth?.getUser();
       
       if (authError || !user) {
-        throw new Error('User not authenticated');
+        // Return empty cart for unauthenticated users instead of throwing error
+        return { data: [], error: null, isAuthenticated: false };
       }
 
       const { data, error } = await supabase?.from('cart_items')?.select(`
@@ -46,10 +47,10 @@ export const cartService = {
 
       if (error) throw error;
 
-      return { data: data || [], error: null };
+      return { data: data || [], error: null, isAuthenticated: true };
     } catch (error) {
       console.error('Error fetching cart items:', error);
-      return { data: null, error: error?.message };
+      return { data: null, error: error?.message, isAuthenticated: false };
     }
   },
 
@@ -63,17 +64,17 @@ export const cartService = {
       const { data: { user }, error: authError } = await supabase?.auth?.getUser();
       
       if (authError || !user) {
-        return { count: 0, error: null };
+        return { count: 0, error: null, isAuthenticated: false };
       }
 
       const { count, error } = await supabase?.from('cart_items')?.select('*', { count: 'exact', head: true })?.eq('user_id', user?.id);
 
       if (error) throw error;
 
-      return { count: count || 0, error: null };
+      return { count: count || 0, error: null, isAuthenticated: true };
     } catch (error) {
       console.error('Error getting cart count:', error);
-      return { count: 0, error: error?.message };
+      return { count: 0, error: error?.message, isAuthenticated: false };
     }
   },
 

@@ -25,6 +25,8 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
   const [isProcessingAI, setIsProcessingAI] = useState(false);
   const [cartItems, setCartItems] = useState([]);
   const [showPropertiesPanel, setShowPropertiesPanel] = useState(false);
+  const [aiAnalysis, setAiAnalysis] = useState(null);
+  const [showAnalysisPanel, setShowAnalysisPanel] = useState(false);
 
   useEffect(() => {
     const savedDesign = localStorage.getItem('virtualRoomDesign');
@@ -46,10 +48,50 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
     setHistoryIndex(newHistory?.length - 1);
   };
 
-  const handleImageUpload = (imageUrl) => {
+  const handleImageUpload = async (imageUrl) => {
     setUploadedImage(imageUrl);
     setPlacedFurniture([]);
     saveToHistory({ image: imageUrl, furniture: [] });
+    
+    // Automatically trigger AI analysis after image upload
+    setIsProcessingAI(true);
+    try {
+      const response = await fetch('/api/room-analysis', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          imageUrl,
+          furnitureData: initialFurnitureData 
+        }),
+      });
+
+      // Check if response is JSON
+      const contentType = response?.headers?.get('content-type');
+      if (!contentType || !contentType?.includes('application/json')) {
+        throw new Error('Server returned non-JSON response. Please check your OpenAI API configuration.');
+      }
+
+      const data = await response?.json();
+      
+      if (data?.success) {
+        setAiAnalysis(data?.analysis);
+        setShowAnalysisPanel(true);
+        setShowAISuggestions(true);
+        setAiSuggestionType('room');
+      } else {
+        console.error('AI analysis failed:', data?.error);
+        const errorMessage = data?.error || 'AI analysis failed';
+        alert(`${errorMessage}\n\nYou can still design your room manually.`);
+      }
+    } catch (error) {
+      console.error('Error analyzing room:', error);
+      const errorMessage = error?.message || 'Failed to analyze room';
+      alert(`${errorMessage}\n\nYou can still design your room manually.`);
+    } finally {
+      setIsProcessingAI(false);
+    }
   };
 
   const handleAddFurniture = (furniture) => {
@@ -150,22 +192,73 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
     alert('Export functionality will download your design as an image file.');
   };
 
-  const handleGetLayoutSuggestions = () => {
-    setIsProcessingAI(true);
-    setTimeout(() => {
+  const handleGetLayoutSuggestions = async () => {
+    if (!aiAnalysis) {
+      // If no analysis yet, perform analysis first
+      if (!uploadedImage) {
+        alert('Please upload a room image first');
+        return;
+      }
+      
+      setIsProcessingAI(true);
+      try {
+        const response = await fetch('/api/room-analysis', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            imageUrl: uploadedImage,
+            furnitureData: initialFurnitureData 
+          }),
+        });
+
+        // Check if response is JSON
+        const contentType = response?.headers?.get('content-type');
+        if (!contentType || !contentType?.includes('application/json')) {
+          throw new Error('Server returned non-JSON response. Please check your OpenAI API configuration.');
+        }
+
+        const data = await response?.json();
+        
+        if (data?.success) {
+          setAiAnalysis(data?.analysis);
+          setShowAnalysisPanel(true);
+          setShowAISuggestions(true);
+          setAiSuggestionType('layout');
+        } else {
+          const errorMessage = data?.error || 'Failed to get AI suggestions';
+          alert(errorMessage);
+        }
+      } catch (error) {
+        console.error('Error getting layout suggestions:', error);
+        const errorMessage = error?.message || 'Failed to get AI suggestions';
+        alert(errorMessage);
+      } finally {
+        setIsProcessingAI(false);
+      }
+    } else {
       setShowAISuggestions(true);
       setAiSuggestionType('layout');
-      setIsProcessingAI(false);
-    }, 2000);
+      setShowAnalysisPanel(true);
+    }
   };
 
   const handleGetColorMatching = () => {
-    setIsProcessingAI(true);
-    setTimeout(() => {
+    if (aiAnalysis) {
       setShowAISuggestions(true);
       setAiSuggestionType('color');
-      setIsProcessingAI(false);
-    }, 2000);
+      setShowAnalysisPanel(true);
+    } else {
+      alert('Please analyze the room first by uploading an image');
+    }
+  };
+
+  const handleApplyRecommendation = (furnitureId) => {
+    const furniture = initialFurnitureData?.find(item => item?.id === furnitureId);
+    if (furniture) {
+      handleAddFurniture(furniture);
+    }
   };
 
   const handleAddToCart = (furniture) => {
@@ -202,7 +295,7 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
                   Virtual Room Designer
                 </h1>
                 <p className="font-body text-muted-foreground">
-                  Upload your room photo and arrange furniture with AI-powered suggestions
+                  Upload your room photo and get AI-powered furniture recommendations
                 </p>
               </div>
 
@@ -220,6 +313,148 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
 
           {uploadedImage ? (
             <div className="flex flex-col gap-4">
+              {isProcessingAI && (
+                <div className="bg-primary/10 border border-primary/20 rounded-lg p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+                    <span className="font-body text-primary font-medium">
+                      AI is analyzing your room...
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {aiAnalysis && showAnalysisPanel && (
+                <div className="bg-surface border border-border rounded-lg p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-heading font-semibold text-lg text-foreground">
+                      AI Room Analysis
+                    </h3>
+                    <button
+                      onClick={() => setShowAnalysisPanel(false)}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <Icon name="XMarkIcon" size={20} variant="solid" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <h4 className="font-body font-semibold text-foreground mb-2">
+                        Room Details
+                      </h4>
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">Type:</span>
+                          <span className="ml-2 text-foreground">{aiAnalysis?.roomAnalysis?.roomType}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Style:</span>
+                          <span className="ml-2 text-foreground">{aiAnalysis?.roomAnalysis?.style}</span>
+                        </div>
+                        <div className="col-span-2">
+                          <span className="text-muted-foreground">Dimensions:</span>
+                          <span className="ml-2 text-foreground">{aiAnalysis?.roomAnalysis?.estimatedDimensions}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h4 className="font-body font-semibold text-foreground mb-2">
+                        Color Palette
+                      </h4>
+                      <div className="flex gap-2">
+                        {aiAnalysis?.roomAnalysis?.dominantColors?.map((color, index) => (
+                          <div
+                            key={index}
+                            className="flex items-center gap-2 px-3 py-1 bg-background rounded-md text-sm"
+                          >
+                            <div
+                              className="w-4 h-4 rounded-full border border-border"
+                              style={{ backgroundColor: color }}
+                            ></div>
+                            <span className="text-foreground">{color}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <h4 className="font-body font-semibold text-foreground mb-3">
+                        Recommended Furniture
+                      </h4>
+                      <div className="space-y-2 max-h-64 overflow-y-auto">
+                        {aiAnalysis?.furnitureRecommendations
+                          ?.sort((a, b) => {
+                            const priorityOrder = { high: 0, medium: 1, low: 2 };
+                            return priorityOrder?.[a?.priority] - priorityOrder?.[b?.priority];
+                          })
+                          ?.map((rec, index) => {
+                            const furniture = initialFurnitureData?.find(
+                              item => item?.id === rec?.furnitureId
+                            );
+                            return (
+                              <div
+                                key={index}
+                                className="flex items-start gap-3 p-3 bg-background rounded-md border border-border"
+                              >
+                                <img
+                                  src={furniture?.image}
+                                  alt={furniture?.alt}
+                                  className="w-16 h-16 object-cover rounded"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <h5 className="font-body font-medium text-foreground">
+                                      {furniture?.name}
+                                    </h5>
+                                    <span
+                                      className={`text-xs px-2 py-0.5 rounded ${
+                                        rec?.priority === 'high' ?'bg-red-100 text-red-700'
+                                          : rec?.priority === 'medium' ?'bg-yellow-100 text-yellow-700' :'bg-green-100 text-green-700'
+                                      }`}
+                                    >
+                                      {rec?.priority}
+                                    </span>
+                                  </div>
+                                  <p className="text-sm text-muted-foreground mb-2">
+                                    {rec?.reason}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground mb-2">
+                                    💡 {rec?.colorMatch}
+                                  </p>
+                                  <button
+                                    onClick={() => handleApplyRecommendation(rec?.furnitureId)}
+                                    className="text-sm text-primary hover:text-primary/80 font-medium"
+                                  >
+                                    Add to Canvas
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+
+                    {aiAnalysis?.layoutSuggestions?.length > 0 && (
+                      <div>
+                        <h4 className="font-body font-semibold text-foreground mb-2">
+                          Layout Tips
+                        </h4>
+                        <ul className="space-y-2">
+                          {aiAnalysis?.layoutSuggestions?.map((tip, index) => (
+                            <li key={index} className="text-sm text-muted-foreground">
+                              <span className="font-medium text-foreground">{tip?.area}:</span>{' '}
+                              {tip?.suggestion}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <ActionToolbar
                 onUndo={handleUndo}
                 onRedo={handleRedo}
@@ -269,10 +504,10 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
             <div className="bg-surface rounded-lg border border-border p-12 text-center">
               <Icon name="PhotoIcon" size={96} variant="outline" className="mx-auto mb-6 text-muted-foreground" />
               <h2 className="font-heading font-semibold text-xl text-foreground mb-3">
-                Start Your Room Design
+                Start Your AI-Powered Room Design
               </h2>
               <p className="font-body text-muted-foreground mb-6 max-w-md mx-auto">
-                Upload a photo of your room to begin arranging furniture. Our AI will detect walls and floors automatically.
+                Upload a photo of your room to get AI-powered furniture recommendations based on colors, style, and spatial layout.
               </p>
               <button
                 onClick={() => setShowUploadModal(true)}
