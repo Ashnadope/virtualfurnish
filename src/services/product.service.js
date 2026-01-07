@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase/client';
+import { createClient } from '@/lib/supabase/client';
 
 export const productService = {
   /**
@@ -7,6 +7,8 @@ export const productService = {
    */
   async getAllProducts() {
     try {
+      const supabase = createClient();
+      
       const { data, error } = await supabase?.from('products')?.select(`
           *,
           product_variants (*)
@@ -55,6 +57,8 @@ export const productService = {
    */
   async getProductsByCategory(category) {
     try {
+      const supabase = createClient();
+      
       const { data, error } = await supabase?.from('products')?.select(`
           *,
           product_variants (*)
@@ -102,6 +106,8 @@ export const productService = {
    */
   async searchProducts(searchTerm) {
     try {
+      const supabase = createClient();
+      
       const { data, error } = await supabase?.from('products')?.select(`
           *,
           product_variants (*)
@@ -149,6 +155,8 @@ export const productService = {
    */
   async getProductById(productId) {
     try {
+      const supabase = createClient();
+      
       const { data, error } = await supabase?.from('products')?.select(`
           *,
           product_variants (*)
@@ -195,6 +203,8 @@ export const productService = {
    */
   async getCategories() {
     try {
+      const supabase = createClient();
+      
       const { data, error } = await supabase?.from('products')?.select('category')?.eq('is_active', true)?.not('category', 'is', null);
 
       if (error) throw error;

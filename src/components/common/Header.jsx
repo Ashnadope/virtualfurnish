@@ -6,11 +6,9 @@ import { usePathname } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
 import { cartService } from '@/services/cart.service';
 import { useAuth } from '../../hooks/auth.hook';
-import { useRouter } from 'next/router';
 
 export default function Header() {
   const { user, userRole, signOut } = useAuth();
-  const router = useRouter();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const pathname = usePathname();
   const [isProfileOpen, setIsProfileOpen] = useState(false);

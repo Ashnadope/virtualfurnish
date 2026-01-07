@@ -2,6 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import PropTypes from 'prop-types';
+import { useAuth } from '@/hooks/auth.hook';
+import { wishlistService } from '@/services/wishlist.service';
+import { cartService } from '@/services/cart.service';
 import Header from '@/components/common/Header';
 import AppImage from '@/components/ui/AppImage';
 

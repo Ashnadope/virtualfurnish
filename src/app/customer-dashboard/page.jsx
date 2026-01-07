@@ -30,7 +30,7 @@ export default function CustomerDashboard() {
       title: "Browse Furniture Catalog",
       description: "Explore our complete collection of quality furniture pieces",
       icon: "CubeIcon",
-      href: "/customer-dashboard",
+      href: "/furniture-catalog",
       bgColor: "bg-gradient-to-br from-secondary to-secondary/80"
     },
     {
@@ -38,7 +38,7 @@ export default function CustomerDashboard() {
       title: "View My Orders",
       description: "Track your purchases and manage delivery schedules",
       icon: "ShoppingBagIcon",
-      href: "/customer-dashboard",
+      href: "/order-history",
       bgColor: "bg-gradient-to-br from-accent to-accent/80"
     }],
 

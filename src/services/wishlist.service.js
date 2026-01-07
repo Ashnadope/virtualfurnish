@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase/client';
+import { createClient } from '@/lib/supabase/client';
 
 /**
  * Wishlist Service - Handles all wishlist-related operations
@@ -9,6 +9,8 @@ export const wishlistService = {
    */
   async getWishlistItems(userId) {
     try {
+      const supabase = createClient();
+      
       const { data, error } = await supabase?.from('wishlist_items')?.select(`
           id,
           created_at,
@@ -52,6 +54,8 @@ export const wishlistService = {
    */
   async addToWishlist(userId, productId) {
     try {
+      const supabase = createClient();
+      
       const { data, error } = await supabase?.from('wishlist_items')?.insert({
           user_id: userId,
           product_id: productId
@@ -76,6 +80,8 @@ export const wishlistService = {
    */
   async removeFromWishlist(wishlistItemId, userId) {
     try {
+      const supabase = createClient();
+      
       const { error } = await supabase?.from('wishlist_items')?.delete()?.eq('id', wishlistItemId)?.eq('user_id', userId);
 
       if (error) throw error;
@@ -92,6 +98,8 @@ export const wishlistService = {
    */
   async isInWishlist(userId, productId) {
     try {
+      const supabase = createClient();
+      
       const { data, error } = await supabase?.from('wishlist_items')?.select('id')?.eq('user_id', userId)?.eq('product_id', productId)?.single();
 
       if (error && error?.code !== 'PGRST116') throw error;
@@ -108,6 +116,8 @@ export const wishlistService = {
    */
   async getWishlistCount(userId) {
     try {
+      const supabase = createClient();
+      
       const { count, error } = await supabase?.from('wishlist_items')?.select('*', { count: 'exact', head: true })?.eq('user_id', userId);
 
       if (error) throw error;

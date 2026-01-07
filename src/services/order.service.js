@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase/client';
+import { createClient } from '@/lib/supabase/client';
 
 /**
  * Order Service - Handles all order-related database operations
@@ -13,6 +13,8 @@ export const orderService = {
    */
   async getUserOrders(userId, filters = {}) {
     try {
+      const supabase = createClient();
+      
       let query = supabase?.from('orders')?.select(`
           id,
           order_number,
@@ -131,6 +133,8 @@ export const orderService = {
    */
   async getOrderById(orderId, userId) {
     try {
+      const supabase = createClient();
+      
       const { data, error } = await supabase?.from('orders')?.select(`
           id,
           order_number,
@@ -232,6 +236,8 @@ export const orderService = {
    */
   async getOrderStats(userId) {
     try {
+      const supabase = createClient();
+      
       const { data, error } = await supabase?.from('orders')?.select('status, total_amount')?.eq('user_id', userId);
 
       if (error) throw error;
@@ -268,6 +274,8 @@ export const orderService = {
    */
   async getTrackingInfo(orderId, userId) {
     try {
+      const supabase = createClient();
+      
       const { data, error } = await supabase?.from('orders')?.select('status, shipping_address, updated_at, notes')?.eq('id', orderId)?.eq('user_id', userId)?.single();
 
       if (error) throw error;
