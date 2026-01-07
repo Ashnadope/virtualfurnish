@@ -30,8 +30,13 @@ export default function OrderHistoryPage() {
     if (user?.id) {
       loadOrders();
       loadStats();
+    } else if (user === null) {
+      // User is not logged in - stop loading
+      setLoading(false);
+      setError('Please log in to view your order history');
     }
-  }, [user?.id]);
+    // If user is undefined, auth is still loading - keep showing loading spinner
+  }, [user?.id, user]);
 
   // Apply filters when they change
   useEffect(() => {
@@ -39,6 +44,11 @@ export default function OrderHistoryPage() {
   }, [filters, orders]);
 
   const loadOrders = async () => {
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
+    
     try {
       setLoading(true);
       setError('');
@@ -53,6 +63,8 @@ export default function OrderHistoryPage() {
   };
 
   const loadStats = async () => {
+    if (!user?.id) return;
+    
     try {
       const statsData = await orderService?.getOrderStats(user?.id);
       setStats(statsData);
