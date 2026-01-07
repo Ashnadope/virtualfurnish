@@ -47,14 +47,14 @@ export default function Header() {
   ];
 
   const customerNavigation = [
-    { label: 'Home', path: '/landing-page' },
+    { label: 'Home', path: '/' },
     { label: 'Dashboard', path: '/customer-dashboard' },
     { label: 'Room Designer', path: '/virtual-room-designer' },
-    { label: 'My Orders', path: '/customer-dashboard' },
+    { label: 'My Orders', path: '/order-history' },
   ];
 
   const adminNavigation = [
-    { label: 'Home', path: '/landing-page' },
+    { label: 'Home', path: '/' },
     { label: 'Dashboard', path: '/admin-dashboard' },
     { label: 'Products', path: '/product-management' },
     { label: 'Analytics', path: '/analytics-dashboard' },

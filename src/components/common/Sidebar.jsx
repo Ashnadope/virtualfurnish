@@ -14,7 +14,7 @@ export default function Sidebar({ userRole = 'customer', isCollapsed = false }) 
   const customerNavigation = [
     { label: 'Dashboard', path: '/customer-dashboard', icon: 'HomeIcon' },
     { label: 'Room Designer', path: '/virtual-room-designer', icon: 'CubeIcon' },
-    { label: 'My Orders', path: '/customer-dashboard', icon: 'ShoppingBagIcon' },
+    { label: 'My Orders', path: '/order-history', icon: 'ShoppingBagIcon' },
   ];
 
   const adminNavigation = [

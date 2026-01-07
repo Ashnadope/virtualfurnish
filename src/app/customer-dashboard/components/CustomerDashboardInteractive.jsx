@@ -47,11 +47,7 @@ export default function CustomerDashboardInteractive({ initialData }) {
         {initialData?.actionTiles?.map((tile) => (
           <ActionTile
             key={tile?.id}
-            title={tile?.title}
-            description={tile?.description}
-            icon={tile?.icon}
-            href={tile?.href}
-            bgColor={tile?.bgColor}
+            tile={tile}
           />
         ))}
       </div>

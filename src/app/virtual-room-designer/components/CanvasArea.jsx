@@ -26,6 +26,7 @@ export default function CanvasArea({
   const [furnitureDragStart, setFurnitureDragStart] = useState(null);
   const [rotationMode, setRotationMode] = useState(false);
   const [rotationStart, setRotationStart] = useState(null);
+  const [isDragOver, setIsDragOver] = useState(false);
   const canvasRef = useRef(null);
   const imageContainerRef = useRef(null);
 
@@ -258,6 +259,51 @@ export default function CanvasArea({
     setRotationStart(null);
   };
 
+  const handleDrop = (e) => {
+    e?.preventDefault();
+    setIsDragOver(false);
+    
+    try {
+      const furnitureData = e?.dataTransfer?.getData('application/json');
+      if (furnitureData) {
+        const furniture = JSON.parse(furnitureData);
+        
+        if (imageContainerRef?.current) {
+          const rect = imageContainerRef?.current?.getBoundingClientRect();
+          const x = ((e?.clientX - rect?.left) / rect?.width) * 100;
+          const y = ((e?.clientY - rect?.top) / rect?.height) * 100;
+          
+          const boundedX = Math.max(0, Math.min(95, x));
+          const boundedY = Math.max(0, Math.min(95, y));
+          
+          const newFurniture = {
+            ...furniture,
+            id: `${furniture?.id}-${Date.now()}`,
+            position: { x: boundedX, y: boundedY },
+            rotation: 0,
+            scale: 1
+          };
+          
+          onFurnitureSelect(newFurniture?.id);
+        }
+      }
+    } catch (error) {
+      console.error('Error dropping furniture:', error);
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e?.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e) => {
+    if (e?.currentTarget === e?.target || !e?.currentTarget?.contains(e?.relatedTarget)) {
+      setIsDragOver(false);
+    }
+  };
+
   const selectedFurniture = placedFurniture?.find(f => f?.id === selectedFurnitureId);
 
   return (
@@ -302,6 +348,9 @@ export default function CanvasArea({
         ref={canvasRef}
         className="flex-1 relative overflow-hidden cursor-move"
         onMouseDown={handleCanvasMouseDown}
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
         style={{ cursor: isPanning ? 'grabbing' : 'grab' }}
       >
         {uploadedImage ? (
@@ -313,12 +362,26 @@ export default function CanvasArea({
               transition: isPanning ? 'none' : 'transform 0.2s ease-out'
             }}
           >
-            <div ref={imageContainerRef} className="relative">
+            <div 
+              ref={imageContainerRef} 
+              className={`relative ${isDragOver ? 'ring-4 ring-primary/50 ring-inset' : ''}`}
+            >
               <AppImage
                 src={uploadedImage}
                 alt="Uploaded room photo showing walls and floor for furniture arrangement"
                 className="max-w-full max-h-full object-contain select-none"
               />
+              
+              {isDragOver && (
+                <div className="absolute inset-0 bg-primary/10 pointer-events-none flex items-center justify-center">
+                  <div className="bg-surface/95 px-6 py-3 rounded-lg shadow-elevated">
+                    <p className="font-body font-medium text-foreground flex items-center gap-2">
+                      <Icon name="CursorArrowRaysIcon" size={20} variant="solid" className="text-primary" />
+                      Drop furniture here
+                    </p>
+                  </div>
+                </div>
+              )}
               
               {showAISuggestions && (
                 <div className="absolute inset-0 pointer-events-none">

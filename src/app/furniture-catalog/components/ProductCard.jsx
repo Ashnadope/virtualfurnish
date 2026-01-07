@@ -139,7 +139,7 @@ export default function ProductCard({ product }) {
 
         {/* View Details Button */}
         <button
-          className="w-full mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          className="w-full mt-4 px-3 sm:px-4 py-2 bg-blue-600 text-white text-sm sm:text-base rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors font-medium touch-manipulation"
           onClick={(e) => {
             e?.stopPropagation();
             handleCardClick();

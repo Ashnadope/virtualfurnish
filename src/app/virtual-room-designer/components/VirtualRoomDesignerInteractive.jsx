@@ -94,11 +94,11 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
     }
   };
 
-  const handleAddFurniture = (furniture) => {
+  const handleAddFurniture = (furniture, position = null) => {
     const newFurniture = {
       ...furniture,
       id: `${furniture?.id}-${Date.now()}`,
-      position: { x: 30, y: 30 },
+      position: position || { x: 30, y: 30 },
       rotation: 0,
       scale: 1
     };
@@ -454,6 +454,35 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
                   </div>
                 </div>
               )}
+
+              <div className="bg-primary/10 border-l-4 border-primary rounded-lg p-4 mb-4">
+                <div className="flex items-start gap-3">
+                  <Icon name="InformationCircleIcon" size={20} variant="solid" className="text-primary mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="font-body font-semibold text-sm text-foreground mb-1">
+                      How to Use Drag & Drop
+                    </p>
+                    <ul className="font-body text-xs text-muted-foreground space-y-1">
+                      <li className="flex items-center gap-2">
+                        <span className="w-1 h-1 rounded-full bg-primary"></span>
+                        <span><strong>Drag from palette:</strong> Click and hold furniture, drag onto room image, release to place</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <span className="w-1 h-1 rounded-full bg-primary"></span>
+                        <span><strong>Move on canvas:</strong> Click and drag placed furniture to reposition</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <span className="w-1 h-1 rounded-full bg-primary"></span>
+                        <span><strong>Rotate:</strong> Ctrl/Cmd + Drag or use scroll wheel on furniture</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <span className="w-1 h-1 rounded-full bg-primary"></span>
+                        <span><strong>Scale:</strong> Ctrl/Cmd + Scroll or use scale buttons</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
 
               <ActionToolbar
                 onUndo={handleUndo}

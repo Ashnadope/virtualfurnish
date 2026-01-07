@@ -22,6 +22,18 @@ export default function FurniturePalette({ furnitureItems, onAddFurniture }) {
     onAddFurniture(furniture);
   };
 
+  const handleDragStart = (e, furniture) => {
+    e?.dataTransfer?.setData('application/json', JSON.stringify(furniture));
+    if (e?.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'copy';
+    }
+    
+    const dragImage = e?.target?.querySelector('img') || e?.target;
+    if (dragImage && e?.dataTransfer) {
+      e.dataTransfer.setDragImage(dragImage, 50, 50);
+    }
+  };
+
   return (
     <>
       <button
@@ -93,14 +105,16 @@ export default function FurniturePalette({ furnitureItems, onAddFurniture }) {
               {filteredFurniture?.map((item) => (
                 <div
                   key={item?.id}
-                  className="bg-card rounded-lg border border-border overflow-hidden hover:shadow-card transition-fast cursor-pointer group"
+                  draggable="true"
+                  onDragStart={(e) => handleDragStart(e, item)}
+                  className="bg-card rounded-lg border border-border overflow-hidden hover:shadow-card transition-fast cursor-grab active:cursor-grabbing group"
                   onClick={() => handleAddToCanvas(item)}
                 >
                   <div className="aspect-square bg-muted relative overflow-hidden">
                     <AppImage
                       src={item?.image}
                       alt={item?.alt}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-fast"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-fast pointer-events-none"
                     />
                     <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/10 transition-fast flex items-center justify-center">
                       <div className="opacity-0 group-hover:opacity-100 transition-fast bg-primary text-primary-foreground p-2 rounded-full">
@@ -140,16 +154,16 @@ export default function FurniturePalette({ furnitureItems, onAddFurniture }) {
 }
 
 FurniturePalette.propTypes = {
-  furnitureItems: PropTypes?.arrayOf(PropTypes?.shape({
-    id: PropTypes?.string?.isRequired,
-    name: PropTypes?.string?.isRequired,
-    category: PropTypes?.string?.isRequired,
-    image: PropTypes?.string?.isRequired,
-    alt: PropTypes?.string?.isRequired,
-    price: PropTypes?.number?.isRequired,
-    dimensions: PropTypes?.string?.isRequired,
-    material: PropTypes?.string?.isRequired,
-    stock: PropTypes?.number?.isRequired
-  }))?.isRequired,
-  onAddFurniture: PropTypes?.func?.isRequired
+  furnitureItems: PropTypes.arrayOf(PropTypes.shape({
+    id: PropTypes.string.isRequired,
+    name: PropTypes.string.isRequired,
+    category: PropTypes.string.isRequired,
+    image: PropTypes.string.isRequired,
+    alt: PropTypes.string.isRequired,
+    price: PropTypes.number.isRequired,
+    dimensions: PropTypes.string.isRequired,
+    material: PropTypes.string.isRequired,
+    stock: PropTypes.number.isRequired
+  })).isRequired,
+  onAddFurniture: PropTypes.func.isRequired
 };
