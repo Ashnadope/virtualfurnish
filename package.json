@@ -33,9 +33,9 @@
     "warning": "🚨 CRITICAL: DO NOT REMOVE OR MODIFY ABOVE DEPENDENCIES - Required for Next.js app functionality"
   },
   "scripts": {
-    "dev": "next dev -p 4028",
-    "build": "next build",
-    "start": "next dev -p 4028",
+    "dev": "NODE_OPTIONS='--max-old-space-size=2048' next dev -p 4028",
+    "build": "NODE_OPTIONS='--max-old-space-size=2048' next build",
+    "start": "next start -p 4028",
     "lint": "next lint",
     "lint:fix": "next lint --fix",
     "format": "prettier --write \"src/**/*.{js,jsx,css,md,json}\"",
