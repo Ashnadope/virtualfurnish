@@ -10,11 +10,11 @@ import LoadingSpinner from './LoadingSpinner';
 import ErrorMessage from './ErrorMessage';
 import EmptyCatalog from './EmptyCatalog';
 
-export default function CatalogInteractive() {
-  const [products, setProducts] = useState([]);
+export default function CatalogInteractive({ initialProducts = [] }) {
+  const [products, setProducts] = useState(initialProducts || []);
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialProducts || initialProducts.length === 0);
   const [error, setError] = useState('');
   
   // Filter states
@@ -24,8 +24,18 @@ export default function CatalogInteractive() {
   const [priceRange, setPriceRange] = useState({ min: 0, max: 100000 });
 
   useEffect(() => {
-    loadInitialData();
-  }, []);
+    // If initialProducts provided, use them directly
+    if (initialProducts && initialProducts.length > 0) {
+      setProducts(initialProducts);
+      setLoading(false);
+      
+      // Extract unique categories from initial products
+      const uniqueCategories = [...new Set(initialProducts.map(p => p?.category).filter(Boolean))];
+      setCategories(uniqueCategories);
+    } else {
+      loadInitialData();
+    }
+  }, [initialProducts]);
 
   useEffect(() => {
     applyFilters();
@@ -42,18 +52,16 @@ export default function CatalogInteractive() {
         productService?.getCategories()
       ]);
 
-      if (productsResult?.error) {
-        throw new Error(productsResult.error);
-      }
+      console.log('[CatalogInteractive] Products result:', productsResult);
+      console.log('[CatalogInteractive] Categories result:', categoriesResult);
 
-      if (categoriesResult?.error) {
-        throw new Error(categoriesResult.error);
-      }
-
-      setProducts(productsResult?.data || []);
+      let productsToUse = productsResult?.data || [];
+      
+      // If no products from Supabase, show empty
+      setProducts(productsToUse);
       setCategories(categoriesResult?.data || []);
     } catch (err) {
-      console.error('Error loading catalog:', err);
+      console.error('[CatalogInteractive] Error loading catalog:', err);
       setError(err?.message || 'Failed to load products. Please try again.');
     } finally {
       setLoading(false);

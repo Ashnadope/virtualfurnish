@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '../../contexts/AuthContext';
 import { orderService } from '../../services/order.service';
 import { generateInvoice, generateReceipt } from '../../utils/invoiceGenerator';
+import { generateMockOrders, formatOrderForOrderCard, generateDeterministicMockUUID } from '../../utils/mockData';
 import OrderCard from './components/OrderCard';
 import OrderFilters from './components/OrderFilters';
 import OrderStats from './components/OrderStats';
@@ -12,7 +14,8 @@ import EmptyOrders from './components/EmptyOrders';
 import ErrorMessage from './components/ErrorMessage';
 
 export default function OrderHistoryPage() {
-  const { user } = useAuth();
+  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const [orders, setOrders] = useState([]);
   const [filteredOrders, setFilteredOrders] = useState([]);
   const [stats, setStats] = useState(null);
@@ -27,16 +30,20 @@ export default function OrderHistoryPage() {
 
   // Load orders on mount
   useEffect(() => {
-    if (user?.id) {
-      loadOrders();
-      loadStats();
-    } else if (user === null) {
-      // User is not logged in - stop loading
-      setLoading(false);
-      setError('Please log in to view your order history');
+    if (authLoading) {
+      setLoading(true);
+      return;
     }
-    // If user is undefined, auth is still loading - keep showing loading spinner
-  }, [user?.id, user]);
+
+    if (!user?.id) {
+      router.push('/login');
+      setLoading(false);
+      return;
+    }
+
+    loadOrders();
+    loadStats();
+  }, [user?.id, authLoading, router]);
 
   // Apply filters when they change
   useEffect(() => {
@@ -52,8 +59,17 @@ export default function OrderHistoryPage() {
     try {
       setLoading(true);
       setError('');
-      const data = await orderService?.getUserOrders(user?.id, filters);
-      setOrders(data || []);
+      
+      // If user is a mock user, use mock data
+      if (user?.isMockUser) {
+        const mockOrders = generateMockOrders(user?.id);
+        const formattedOrders = mockOrders.map(order => formatOrderForOrderCard(order));
+        setOrders(formattedOrders || []);
+      } else {
+        // Otherwise fetch from Supabase
+        const data = await orderService?.getUserOrders(user?.id, filters);
+        setOrders(data || []);
+      }
     } catch (err) {
       console.error('Error loading orders:', err);
       setError(err?.message || 'Failed to load orders. Please try again.');
@@ -66,8 +82,23 @@ export default function OrderHistoryPage() {
     if (!user?.id) return;
     
     try {
-      const statsData = await orderService?.getOrderStats(user?.id);
-      setStats(statsData);
+      // For mock users, calculate stats from mock data
+      if (user?.isMockUser) {
+        const mockOrders = generateMockOrders(user?.id);
+        const totalOrders = mockOrders.length;
+        const totalSpent = mockOrders.reduce((sum, order) => sum + parseFloat(order.totalAmount), 0);
+        const pendingOrders = mockOrders.filter(o => o.status === 'pending').length;
+        
+        setStats({
+          totalOrders,
+          totalSpent,
+          pendingOrders,
+          averageOrderValue: totalOrders > 0 ? totalSpent / totalOrders : 0
+        });
+      } else {
+        const statsData = await orderService?.getOrderStats(user?.id);
+        setStats(statsData);
+      }
     } catch (err) {
       console.error('Error loading stats:', err);
     }

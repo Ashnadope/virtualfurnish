@@ -2,6 +2,7 @@ import Sidebar from '@/components/common/Sidebar';
 import Header from '@/components/common/Header';
 import Breadcrumb from '@/components/common/Breadcrumb';
 import AdminDashboardInteractive from './components/AdminDashboardInteractive';
+import AdminProtection from './components/AdminProtection';
 
 // Force dynamic rendering to prevent prerendering during build
 export const dynamic = 'force-dynamic';
@@ -219,23 +220,26 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <Sidebar userRole="admin" />
-      <Header userRole="admin" userName="Maryjoy and Joel" />
-      
-      <main className="lg:ml-sidebar pt-16">
-        <div className="p-6 lg:p-8">
-          <div className="mb-6">
-            <Breadcrumb />
-            <h1 className="font-heading text-3xl font-bold text-foreground mt-4 mb-2">Admin Dashboard</h1>
-            <p className="font-body text-base text-muted-foreground">
-              Monitor business operations and manage Brosas Furniture Store
-            </p>
-          </div>
+    <AdminProtection>
+      <div className="min-h-screen bg-background">
+        <Sidebar userRole="admin" />
+        <Header userRole="admin" userName="Maryjoy and Joel" />
+        
+        <main className="lg:ml-sidebar pt-16">
+          <div className="p-6 lg:p-8">
+            <div className="mb-6">
+              <Breadcrumb />
+              <h1 className="font-heading text-3xl font-bold text-foreground mt-4 mb-2">Admin Dashboard</h1>
+              <p className="font-body text-base text-muted-foreground">
+                Monitor business operations and manage Brosas Furniture Store
+              </p>
+            </div>
 
-          <AdminDashboardInteractive initialData={dashboardData} />
-        </div>
-      </main>
-    </div>);
+            <AdminDashboardInteractive initialData={dashboardData} />
+          </div>
+        </main>
+      </div>
+    </AdminProtection>
+  );
 
 }

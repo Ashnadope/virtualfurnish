@@ -12,7 +12,7 @@ export const productService = {
       const { data, error } = await supabase?.from('products')?.select(`
           *,
           product_variants (*)
-        `)?.eq('is_active', true)?.order('created_at', { ascending: false });
+        `)?.order('created_at', { ascending: false });
 
       if (error) throw error;
 
@@ -46,7 +46,7 @@ export const productService = {
       return { data: formattedData, error: null };
     } catch (error) {
       console.error('Error fetching products:', error);
-      return { data: null, error: error?.message };
+      return { data: [], error: error?.message };
     }
   },
 
@@ -62,7 +62,7 @@ export const productService = {
       const { data, error } = await supabase?.from('products')?.select(`
           *,
           product_variants (*)
-        `)?.eq('is_active', true)?.eq('category', category)?.order('created_at', { ascending: false });
+        `)?.eq('category', category)?.order('created_at', { ascending: false });
 
       if (error) throw error;
 
@@ -205,7 +205,7 @@ export const productService = {
     try {
       const supabase = createClient();
       
-      const { data, error } = await supabase?.from('products')?.select('category')?.eq('is_active', true)?.not('category', 'is', null);
+      const { data, error } = await supabase?.from('products')?.select('category')?.not('category', 'is', null);
 
       if (error) throw error;
 
@@ -215,7 +215,7 @@ export const productService = {
       return { data: categories, error: null };
     } catch (error) {
       console.error('Error fetching categories:', error);
-      return { data: null, error: error?.message };
+      return { data: [], error: null };
     }
   }
 };

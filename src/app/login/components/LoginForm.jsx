@@ -4,9 +4,11 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import PropTypes from 'prop-types';
 import Icon from '@/components/ui/AppIcon';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function LoginForm({ mockCredentials }) {
   const router = useRouter();
+  const { mockLogin } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -62,6 +64,7 @@ export default function LoginForm({ mockCredentials }) {
       const credentials = mockCredentials?.[formData?.userType];
       
       if (formData?.email === credentials?.email && formData?.password === credentials?.password) {
+        mockLogin(formData?.email, formData?.userType);
         if (formData?.userType === 'customer') {
           router?.push('/customer-dashboard');
         } else {

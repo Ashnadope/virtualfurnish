@@ -1,13 +1,25 @@
+'use client';
+
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 import Icon from '@/components/ui/AppIcon';
 import AppImage from '@/components/ui/AppImage';
 
-export const metadata = {
-  title: 'VirtualFurnish - Transform Your Space with Virtual Room Design',
-  description: 'Design your dream room with VirtualFurnish. AI-powered furniture suggestions, drag-and-drop room design, and extensive furniture catalog from Brosas Furniture Store.'
-};
-
 export default function LandingPage() {
+  const router = useRouter();
+  const { user, userRole } = useAuth();
+
+  const handleGetStarted = () => {
+    if (!user) {
+      router.push('/login');
+    } else if (userRole === 'admin') {
+      router.push('/admin-dashboard');
+    } else {
+      router.push('/customer-dashboard');
+    }
+  };
+
   const features = [
   {
     icon: 'SparklesIcon',
@@ -87,13 +99,12 @@ export default function LandingPage() {
               
               {/* CTA Buttons */}
               <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-                <Link
-                  href="/login"
-                  className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-accent text-foreground rounded-lg font-semibold text-lg hover:bg-accent/90 transition-fast shadow-lg hover:shadow-xl">
-
+                <button
+                  onClick={handleGetStarted}
+                  className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-accent text-foreground rounded-lg font-semibold text-lg hover:bg-accent/90 transition-fast shadow-lg hover:shadow-xl cursor-pointer">
                   <Icon name="RocketLaunchIcon" size={24} variant="solid" />
                   Get Started
-                </Link>
+                </button>
                 
                 <Link
                   href="/login"
@@ -298,18 +309,16 @@ export default function LandingPage() {
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              href="/login"
-              className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-accent text-foreground rounded-lg font-semibold text-lg hover:bg-accent/90 transition-fast shadow-lg hover:shadow-xl">
-
+            <button
+              onClick={handleGetStarted}
+              className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-accent text-foreground rounded-lg font-semibold text-lg hover:bg-accent/90 transition-fast shadow-lg hover:shadow-xl cursor-pointer">
               <Icon name="RocketLaunchIcon" size={24} variant="solid" />
               Get Started Free
-            </Link>
+            </button>
             
             <Link
               href="/login"
               className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white/10 backdrop-blur-sm text-white border-2 border-white/30 rounded-lg font-semibold text-lg hover:bg-white/20 transition-fast">
-
               <Icon name="ArrowRightCircleIcon" size={24} variant="outline" />
               Sign In to Your Account
             </Link>
