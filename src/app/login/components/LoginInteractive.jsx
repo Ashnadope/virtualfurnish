@@ -7,7 +7,7 @@ import SecondaryActions from './SecondaryActions';
 import FeatureHighlights from './FeatureHighlights';
 import TrustSignals from './TrustSignals';
 
-export default function LoginInteractive({ mockCredentials, features, trustSignals }) {
+export default function LoginInteractive({ features, trustSignals }) {
   const [showFeatures] = useState(true);
 
   return (
@@ -36,7 +36,7 @@ export default function LoginInteractive({ mockCredentials, features, trustSigna
               </p>
             </div>
 
-            <LoginForm mockCredentials={mockCredentials} />
+            <LoginForm />
 
             <div className="mt-6">
               <SecondaryActions showRegister={true} />
@@ -62,16 +62,6 @@ export default function LoginInteractive({ mockCredentials, features, trustSigna
 }
 
 LoginInteractive.propTypes = {
-  mockCredentials: PropTypes?.shape({
-    customer: PropTypes?.shape({
-      email: PropTypes?.string?.isRequired,
-      password: PropTypes?.string?.isRequired
-    })?.isRequired,
-    admin: PropTypes?.shape({
-      email: PropTypes?.string?.isRequired,
-      password: PropTypes?.string?.isRequired
-    })?.isRequired
-  })?.isRequired,
   features: PropTypes?.arrayOf(
     PropTypes?.shape({
       icon: PropTypes?.string?.isRequired,

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../../contexts/AuthContext';
 import { orderService } from '../../services/order.service';
 import { generateInvoice, generateReceipt } from '../../utils/invoiceGenerator';
-import { generateMockOrders, formatOrderForOrderCard, generateDeterministicMockUUID } from '../../utils/mockData';
+import { generateMockOrders, formatOrderForOrderCard } from '../../utils/mockData';
 import OrderCard from './components/OrderCard';
 import OrderFilters from './components/OrderFilters';
 import OrderStats from './components/OrderStats';
@@ -60,12 +60,8 @@ export default function OrderHistoryPage() {
       setLoading(true);
       setError('');
       
-      // If user is a mock user, use mock data
-      if (user?.isMockUser) {
-        const mockOrders = generateMockOrders(user?.id);
-        const formattedOrders = mockOrders.map(order => formatOrderForOrderCard(order));
-        setOrders(formattedOrders || []);
-      } else {
+      // Fetch real orders from Supabase
+      if (user?.id) {
         // Otherwise fetch from Supabase
         const data = await orderService?.getUserOrders(user?.id, filters);
         setOrders(data || []);
@@ -82,12 +78,11 @@ export default function OrderHistoryPage() {
     if (!user?.id) return;
     
     try {
-      // For mock users, calculate stats from mock data
-      if (user?.isMockUser) {
-        const mockOrders = generateMockOrders(user?.id);
-        const totalOrders = mockOrders.length;
-        const totalSpent = mockOrders.reduce((sum, order) => sum + parseFloat(order.totalAmount), 0);
-        const pendingOrders = mockOrders.filter(o => o.status === 'pending').length;
+      // Calculate stats from fetched orders
+      if (orders.length > 0) {
+        const totalOrders = orders.length;
+        const totalSpent = orders.reduce((sum, order) => sum + parseFloat(order.totalAmount || 0), 0);
+        const pendingOrders = orders.filter(o => o.status === 'pending').length;
         
         setStats({
           totalOrders,

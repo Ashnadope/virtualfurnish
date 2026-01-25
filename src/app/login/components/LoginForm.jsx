@@ -1,22 +1,32 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import PropTypes from 'prop-types';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 
-export default function LoginForm({ mockCredentials }) {
+export default function LoginForm() {
   const router = useRouter();
-  const { mockLogin } = useAuth();
+  const { signIn, user, userRole, loading, signOut } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
-    password: '',
-    userType: 'customer'
+    password: ''
   });
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  // If user is already logged in, redirect them
+  useEffect(() => {
+    if (!loading && user) {
+      // User is logged in, redirect to dashboard
+      if (userRole === 'admin') {
+        router?.push('/admin-dashboard');
+      } else {
+        router?.push('/customer-dashboard');
+      }
+    }
+  }, [user, userRole, loading, router]);
 
   const validateEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -60,58 +70,18 @@ export default function LoginForm({ mockCredentials }) {
 
     setIsLoading(true);
 
-    setTimeout(() => {
-      const credentials = mockCredentials?.[formData?.userType];
-      
-      if (formData?.email === credentials?.email && formData?.password === credentials?.password) {
-        mockLogin(formData?.email, formData?.userType);
-        if (formData?.userType === 'customer') {
-          router?.push('/customer-dashboard');
-        } else {
-          router?.push('/admin-dashboard');
-        }
-      } else {
-        setErrors({
-          submit: `Invalid credentials. Use ${credentials?.email} / ${credentials?.password}`
-        });
-        setIsLoading(false);
-      }
-    }, 1000);
+    const { error } = await signIn(formData.email, formData.password);
+
+    if (error) {
+      setErrors({
+        submit: error.message || 'Invalid email or password'
+      });
+      setIsLoading(false);
+    }
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <div>
-        <label htmlFor="userType" className="block text-sm font-medium text-foreground mb-2">
-          Login As
-        </label>
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={() => setFormData(prev => ({ ...prev, userType: 'customer' }))}
-            className={`
-              px-4 py-3 rounded-lg border-2 transition-fast font-body text-sm
-              ${formData?.userType === 'customer' ?'border-primary bg-primary text-primary-foreground' :'border-border bg-surface text-foreground hover:border-primary/50'
-              }
-            `}
-          >
-            <Icon name="UserIcon" size={20} variant={formData?.userType === 'customer' ? 'solid' : 'outline'} className="mx-auto mb-1" />
-            Customer
-          </button>
-          <button
-            type="button"
-            onClick={() => setFormData(prev => ({ ...prev, userType: 'admin' }))}
-            className={`
-              px-4 py-3 rounded-lg border-2 transition-fast font-body text-sm
-              ${formData?.userType === 'admin' ?'border-primary bg-primary text-primary-foreground' :'border-border bg-surface text-foreground hover:border-primary/50'
-              }
-            `}
-          >
-            <Icon name="ShieldCheckIcon" size={20} variant={formData?.userType === 'admin' ? 'solid' : 'outline'} className="mx-auto mb-1" />
-            Admin
-          </button>
-        </div>
-      </div>
       <div>
         <label htmlFor="email" className="block text-sm font-medium text-foreground mb-2">
           Email Address
@@ -214,16 +184,3 @@ export default function LoginForm({ mockCredentials }) {
     </form>
   );
 }
-
-LoginForm.propTypes = {
-  mockCredentials: PropTypes?.shape({
-    customer: PropTypes?.shape({
-      email: PropTypes?.string?.isRequired,
-      password: PropTypes?.string?.isRequired
-    })?.isRequired,
-    admin: PropTypes?.shape({
-      email: PropTypes?.string?.isRequired,
-      password: PropTypes?.string?.isRequired
-    })?.isRequired
-  })?.isRequired
-};

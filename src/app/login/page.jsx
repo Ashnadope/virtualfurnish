@@ -6,17 +6,6 @@ export const metadata = {
 };
 
 export default function LoginPage() {
-  const mockCredentials = {
-    customer: {
-      email: "customer@virtualfurnish.com",
-      password: "customer123"
-    },
-    admin: {
-      email: "admin@virtualfurnish.com",
-      password: "admin123"
-    }
-  };
-
   const features = [
     {
       icon: "CubeIcon",
@@ -59,5 +48,5 @@ export default function LoginPage() {
     }
   ];
 
-  return <LoginInteractive mockCredentials={mockCredentials} features={features} trustSignals={trustSignals} />;
+  return <LoginInteractive features={features} trustSignals={trustSignals} />;
 }

@@ -154,14 +154,22 @@ export default function Header() {
                     <p className="font-body text-xs text-muted-foreground capitalize">{userRole}</p>
                   </div>
                   <div className="py-2">
-                    <Link
-                      href="/login"
-                      className="flex items-center gap-3 px-4 py-2 text-sm text-popover-foreground hover:bg-muted transition-fast"
-                      onClick={toggleProfile}
+                    <button
+                      onClick={async () => {
+                        toggleProfile();
+                        const { error } = await signOut();
+                        if (!error) {
+                          // Wait a moment for the auth state to update
+                          setTimeout(() => {
+                            window.location.href = '/login';
+                          }, 300);
+                        }
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2 text-sm text-popover-foreground hover:bg-muted transition-fast"
                     >
                       <Icon name="ArrowRightOnRectangleIcon" size={18} variant="outline" />
                       <span>Logout</span>
-                    </Link>
+                    </button>
                   </div>
                 </div>
               </>

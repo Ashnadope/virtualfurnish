@@ -3,7 +3,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import PropTypes from 'prop-types';
-import { generateDeterministicMockUUID } from '@/utils/mockData';
 
 const AuthContext = createContext({});
 
@@ -30,8 +29,8 @@ export function AuthProvider({ children }) {
         const { user: storedUser, userProfile: storedProfile } = JSON.parse(stored);
         // Validate UUID format - if it's invalid, clear and skip hydration
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-        if (storedUser?.id && !uuidRegex.test(storedUser.id) && !storedUser?.isMockUser) {
-          // Invalid UUID and not flagged as mock user, clear the session
+        if (storedUser?.id && !uuidRegex.test(storedUser.id)) {
+          // Invalid UUID, clear the session
           localStorage.removeItem('vf_session');
         } else {
           setUser(storedUser);
@@ -52,49 +51,7 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  // Mock login with persistence
-  // Uses deterministic UUID based on email for consistency across sessions
-  const mockLogin = (email, userType) => {
-    const userId = generateDeterministicMockUUID(email);
-    const mockUser = {
-      id: userId,
-      email,
-      user_metadata: { role: userType },
-      isMockUser: true // Flag to identify mock users
-    };
-    const mockProfile = {
-      id: userId,
-      email,
-      first_name: userType === 'admin' ? 'Admin' : 'Customer',
-      role: userType,
-      isMockUser: true // Flag to identify mock users
-    };
-    
-    setUser(mockUser);
-    setUserProfile(mockProfile);
-    
-    // Persist to localStorage
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem('vf_session', JSON.stringify({ user: mockUser, userProfile: mockProfile, isMockSession: true }));
-      } catch (err) {
-        console.error('Session save error:', err);
-      }
-    }
-  };
 
-  const mockLogout = () => {
-    setUser(null);
-    setUserProfile(null);
-    
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.removeItem('vf_session');
-      } catch (err) {
-        console.error('Session clear error:', err);
-      }
-    }
-  };
 
   // Derive userRole from user metadata or profile
   const getUserRole = (authUser, profile) => {
@@ -103,14 +60,14 @@ export function AuthProvider({ children }) {
       return authUser?.user_metadata?.role;
     }
     
-    // Check if email suggests admin
-    if (authUser?.email?.includes('admin')) {
-      return 'admin';
-    }
-    
     // Check profile for role information
     if (profile?.role) {
       return profile?.role;
+    }
+    
+    // Check if email suggests admin (email contains 'admin')
+    if (authUser?.email?.toLowerCase()?.includes('admin')) {
+      return 'admin';
     }
     
     // Default to customer
@@ -136,21 +93,19 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Skip Supabase auth checks when using mock auth
+  // Listen for Supabase auth state changes
   useEffect(() => {
     if (!isHydrated) return;
-    
-    // If we have a mock user, don't check Supabase
-    if (user?.isMockUser) {
-      return;
-    }
-
-    // Listen for Supabase auth changes only if not using mock auth
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user?.id) {
-        loadUserProfile(session.user.id);
+      // Only update user if session actually exists
+      if (session?.user) {
+        setUser(session.user);
+        if (session.user.id) {
+          loadUserProfile(session.user.id);
+        }
       } else {
+        // No session, clear user and profile
+        setUser(null);
         setUserProfile(null);
       }
     });
@@ -171,8 +126,6 @@ export function AuthProvider({ children }) {
     userRole,
     loading,
     isAuthenticated: !!user,
-    mockLogin,
-    mockLogout,
     signUp: async (email, password, metadata = {}) => {
       const { data, error } = await supabase?.auth?.signUp({
         email,
@@ -191,12 +144,31 @@ export function AuthProvider({ children }) {
       return { data, error };
     },
     signOut: async () => {
-      const { error } = await supabase?.auth?.signOut();
-      if (!error) {
+      // Clear localStorage first
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem('vf_session');
+        } catch (err) {
+          console.error('Session clear error:', err);
+        }
+      }
+      
+      // Then call Supabase signOut
+      try {
+        const { error } = await supabase.auth.signOut();
+        
+        // Clear state regardless of error
         setUser(null);
         setUserProfile(null);
+        
+        return { error };
+      } catch (err) {
+        console.error('Logout error:', err);
+        // Force clear state on error
+        setUser(null);
+        setUserProfile(null);
+        return { error: err };
       }
-      return { error };
     },
     resetPassword: async (email) => {
       const { data, error } = await supabase?.auth?.resetPasswordForEmail(email, {

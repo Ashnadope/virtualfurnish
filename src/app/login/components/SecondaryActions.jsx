@@ -21,7 +21,7 @@ export default function SecondaryActions({ showRegister = true }) {
             Don&apos;t have an account?
           </p>
           <Link
-            href="/login"
+            href="/signup"
             className="w-full py-3 px-4 rounded-lg border-2 border-border bg-surface text-foreground font-body font-semibold text-sm transition-fast hover:border-primary hover:bg-primary/5 flex items-center justify-center gap-2"
           >
             <Icon name="UserPlusIcon" size={20} variant="outline" />
