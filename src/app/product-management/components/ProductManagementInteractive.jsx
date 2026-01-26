@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import Icon from '@/components/ui/AppIcon';
+import { productService } from '@/services/product.service';
 import ProductFilters from './ProductFilters';
 import ProductTableHeader from './ProductTableHeader';
 import ProductTableRow from './ProductTableRow';
@@ -69,16 +70,32 @@ export default function ProductManagementInteractive({ initialProducts }) {
     setIsFormModalOpen(true);
   };
 
-  const handleSaveProduct = (productData) => {
-    if (editingProduct) {
-      setProducts(prev =>
-        prev?.map(p => (p?.id === productData?.id ? productData : p))
-      );
-    } else {
-      setProducts(prev => [...prev, productData]);
+  const handleSaveProduct = async (productData) => {
+    try {
+      if (editingProduct) {
+        // Update existing product
+        const { data, error } = await productService.updateProduct(productData?.id, productData);
+        if (error) {
+          console.error('Error updating product:', error);
+          return;
+        }
+        setProducts(prev =>
+          prev?.map(p => (p?.id === productData?.id ? { ...p, ...data } : p))
+        );
+      } else {
+        // Create new product
+        const { data, error } = await productService.createProduct(productData);
+        if (error) {
+          console.error('Error creating product:', error);
+          return;
+        }
+        setProducts(prev => [...prev, data]);
+      }
+      setIsFormModalOpen(false);
+      setEditingProduct(null);
+    } catch (error) {
+      console.error('Error saving product:', error);
     }
-    setIsFormModalOpen(false);
-    setEditingProduct(null);
   };
 
   const handleDeleteProduct = (id) => {
@@ -91,30 +108,69 @@ export default function ProductManagementInteractive({ initialProducts }) {
     setIsDeleteModalOpen(true);
   };
 
-  const confirmDelete = () => {
-    setProducts(prev => prev?.filter(p => !deleteTarget?.includes(p?.id)));
-    setSelectedProducts([]);
-    setIsDeleteModalOpen(false);
-    setDeleteTarget(null);
+  const confirmDelete = async () => {
+    try {
+      if (deleteTarget?.length > 0) {
+        const { success, error } = await productService.deleteProducts(deleteTarget);
+        if (error) {
+          console.error('Error deleting products:', error);
+          return;
+        }
+        setProducts(prev => prev?.filter(p => !deleteTarget?.includes(p?.id)));
+        setSelectedProducts([]);
+      }
+      setIsDeleteModalOpen(false);
+      setDeleteTarget(null);
+    } catch (error) {
+      console.error('Error confirming delete:', error);
+    }
   };
 
-  const handleToggleStatus = (id) => {
-    setProducts(prev =>
-      prev?.map(p =>
-        p?.id === id
-          ? { ...p, status: p?.status === 'active' ? 'inactive' : 'active' }
-          : p
-      )
-    );
+  const handleToggleStatus = async (id) => {
+    try {
+      const product = products?.find(p => p?.id === id);
+      if (!product) return;
+      
+      const newStatus = product?.status === 'active' ? 'inactive' : 'active';
+      const { data, error } = await productService.updateProduct(id, {
+        ...product,
+        status: newStatus
+      });
+      
+      if (error) {
+        console.error('Error updating status:', error);
+        return;
+      }
+      
+      setProducts(prev =>
+        prev?.map(p =>
+          p?.id === id
+            ? { ...p, status: newStatus }
+            : p
+        )
+      );
+    } catch (error) {
+      console.error('Error toggling status:', error);
+    }
   };
 
-  const handleBulkStatusChange = (status) => {
-    setProducts(prev =>
-      prev?.map(p =>
-        selectedProducts?.includes(p?.id) ? { ...p, status } : p
-      )
-    );
-    setSelectedProducts([]);
+  const handleBulkStatusChange = async (status) => {
+    try {
+      const updates = products
+        ?.filter(p => selectedProducts?.includes(p?.id))
+        ?.map(p => productService.updateProduct(p?.id, { ...p, status }));
+      
+      await Promise.all(updates);
+      
+      setProducts(prev =>
+        prev?.map(p =>
+          selectedProducts?.includes(p?.id) ? { ...p, status } : p
+        )
+      );
+      setSelectedProducts([]);
+    } catch (error) {
+      console.error('Error bulk changing status:', error);
+    }
   };
 
   const filteredProducts = useMemo(() => {

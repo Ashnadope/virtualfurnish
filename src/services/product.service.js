@@ -217,5 +217,164 @@ export const productService = {
       console.error('Error fetching categories:', error);
       return { data: [], error: null };
     }
+  },
+
+  /**
+   * Create a new product
+   * @param {Object} productData - Product data with name, description, brand, category, basePrice, sku, imageUrl
+   * @returns {Promise<{data: Object, error: any}>}
+   */
+  async createProduct(productData) {
+    try {
+      const supabase = createClient();
+      
+      console.log('Creating product with data:', productData);
+      
+      const { data, error } = await supabase?.from('products')?.insert([
+        {
+          name: productData?.name,
+          description: productData?.description,
+          brand: productData?.brand || null,
+          category: productData?.category,
+          base_price: productData?.price || productData?.basePrice,
+          sku: productData?.sku,
+          image_url: productData?.image || productData?.imageUrl,
+          is_active: productData?.status === 'active' || productData?.isActive !== false
+        }
+      ])?.select()?.single();
+
+      if (error) {
+        console.error('Supabase error creating product:', error);
+        throw error;
+      }
+
+      console.log('Product created successfully:', data);
+
+      // Format response to match UI expectations
+      return { 
+        data: {
+          id: data?.id,
+          name: data?.name,
+          brand: data?.brand,
+          category: data?.category,
+          description: data?.description,
+          image: data?.image_url,
+          price: data?.base_price,
+          sku: data?.sku,
+          status: data?.is_active ? 'active' : 'inactive',
+          stock: 0,
+          variants: []
+        }, 
+        error: null 
+      };
+    } catch (error) {
+      console.error('Error creating product:', error);
+      return { data: null, error: error?.message };
+    }
+  },
+
+  /**
+   * Update an existing product
+   * @param {string} productId - Product ID
+   * @param {Object} productData - Updated product data
+   * @returns {Promise<{data: Object, error: any}>}
+   */
+  async updateProduct(productId, productData) {
+    try {
+      const supabase = createClient();
+      
+      console.log('Updating product:', productId, 'with data:', productData);
+      
+      const { data, error } = await supabase?.from('products')?.update({
+        name: productData?.name,
+        description: productData?.description,
+        brand: productData?.brand || null,
+        category: productData?.category,
+        base_price: productData?.price || productData?.basePrice,
+        sku: productData?.sku,
+        image_url: productData?.image || productData?.imageUrl,
+        is_active: productData?.status === 'active' || productData?.isActive !== false
+      })?.eq('id', productId)?.select()?.single();
+
+      if (error) {
+        console.error('Supabase error updating product:', error);
+        throw error;
+      }
+
+      console.log('Product updated successfully:', data);
+
+      // Format response to match UI expectations
+      return { 
+        data: {
+          id: data?.id,
+          name: data?.name,
+          brand: data?.brand,
+          category: data?.category,
+          description: data?.description,
+          image: data?.image_url,
+          price: data?.base_price,
+          sku: data?.sku,
+          status: data?.is_active ? 'active' : 'inactive',
+          stock: productData?.stock || 0,
+          variants: productData?.variants || []
+        }, 
+        error: null 
+      };
+    } catch (error) {
+      console.error('Error updating product:', error);
+      return { data: null, error: error?.message };
+    }
+  },
+
+  /**
+   * Delete a product by ID
+   * @param {string} productId - Product ID
+   * @returns {Promise<{success: boolean, error: any}>}
+   */
+  async deleteProduct(productId) {
+    try {
+      const supabase = createClient();
+      
+      console.log('Deleting product:', productId);
+      
+      const { error } = await supabase?.from('products')?.delete()?.eq('id', productId);
+
+      if (error) {
+        console.error('Supabase error deleting product:', error);
+        throw error;
+      }
+
+      console.log('Product deleted successfully:', productId);
+      return { success: true, error: null };
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      return { success: false, error: error?.message };
+    }
+  },
+
+  /**
+   * Delete multiple products by IDs
+   * @param {Array<string>} productIds - Array of product IDs
+   * @returns {Promise<{success: boolean, error: any}>}
+   */
+  async deleteProducts(productIds) {
+    try {
+      const supabase = createClient();
+      
+      console.log('Deleting products:', productIds);
+      
+      const { error } = await supabase?.from('products')?.delete()?.in('id', productIds);
+
+      if (error) {
+        console.error('Supabase error deleting products:', error);
+        throw error;
+      }
+
+      console.log('Products deleted successfully:', productIds);
+      return { success: true, error: null };
+    } catch (error) {
+      console.error('Error deleting products:', error);
+      return { success: false, error: error?.message };
+    }
   }
 };

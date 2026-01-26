@@ -88,15 +88,16 @@ export default function ProductFormModal({ isOpen, onClose, onSave, product }) {
     return Object.keys(newErrors)?.length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e?.preventDefault();
     if (validate()) {
-      onSave({
+      const dataToSave = {
         ...formData,
         price: parseFloat(formData?.price),
         stock: parseInt(formData?.stock),
-        id: product?.id || Date.now()
-      });
+        id: product?.id || formData?.id || Date.now()
+      };
+      await onSave(dataToSave);
       resetForm();
     }
   };

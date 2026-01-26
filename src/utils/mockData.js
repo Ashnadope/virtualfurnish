@@ -2,6 +2,9 @@
  * Mock Data Utility
  * Generates mock data that aligns with Supabase schema for development/testing
  * All IDs use valid UUID v4 format for compatibility with Supabase
+ * 
+ * NOTE: Product data is now fetched from the database via productService.
+ * This file contains utility functions for generating test data (users, orders, etc)
  */
 
 /**
@@ -78,52 +81,6 @@ export function generateMockUserProfile(email = 'customer@example.com') {
     updatedAt: new Date('2025-12-15').toISOString(),
   };
 }
-
-/**
- * Mock product data
- * Aligned with products table schema
- */
-export const mockProducts = [
-  {
-    id: '550e8400-e29b-41d4-a716-446655440001',
-    name: 'Modern Leather Sofa',
-    description: 'Luxurious 3-seater leather sofa with chrome legs',
-    brand: 'Urban Living',
-    category: 'Sofas',
-    basePrice: 45999.00,
-    sku: 'SOFA-ML-001',
-    imageUrl: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800',
-    isActive: true,
-    createdAt: new Date('2025-01-01').toISOString(),
-    updatedAt: new Date('2025-01-01').toISOString(),
-  },
-  {
-    id: '550e8400-e29b-41d4-a716-446655440002',
-    name: 'Scandinavian Dining Table',
-    description: 'Oak wood dining table seats 6-8 people',
-    brand: 'Nordic Home',
-    category: 'Dining',
-    basePrice: 32999.00,
-    sku: 'TABLE-SD-001',
-    imageUrl: 'https://images.unsplash.com/photo-1617806118233-18e1de247200?w=800',
-    isActive: true,
-    createdAt: new Date('2025-01-02').toISOString(),
-    updatedAt: new Date('2025-01-02').toISOString(),
-  },
-  {
-    id: '550e8400-e29b-41d4-a716-446655440003',
-    name: 'Queen Size Bed Frame',
-    description: 'Modern platform bed with upholstered headboard',
-    brand: 'Dream Rest',
-    category: 'Beds',
-    basePrice: 28999.00,
-    sku: 'BED-QS-001',
-    imageUrl: 'https://images.unsplash.com/photo-1505693314120-0d443867891c?w=800',
-    isActive: true,
-    createdAt: new Date('2025-01-03').toISOString(),
-    updatedAt: new Date('2025-01-03').toISOString(),
-  },
-];
 
 /**
  * Mock orders data
@@ -438,3 +395,4 @@ export function formatOrderForOrderCard(order) {
     notes: order.notes,
   };
 }
+

@@ -21,56 +21,24 @@ export function AuthProvider({ children }) {
   const [isHydrated, setIsHydrated] = useState(false);
   const supabase = createClient();
 
-  // Hydrate from localStorage only on client mount
+  // Set initial loading state
   useEffect(() => {
-    try {
-      const stored = localStorage?.getItem('vf_session');
-      if (stored) {
-        const { user: storedUser, userProfile: storedProfile } = JSON.parse(stored);
-        // Validate UUID format - if it's invalid, clear and skip hydration
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-        if (storedUser?.id && !uuidRegex.test(storedUser.id)) {
-          // Invalid UUID, clear the session
-          localStorage.removeItem('vf_session');
-        } else {
-          setUser(storedUser);
-          setUserProfile(storedProfile);
-        }
-      }
-    } catch (err) {
-      console.error('Hydration error:', err);
-      // Clear corrupted session
-      try {
-        localStorage.removeItem('vf_session');
-      } catch (e) {
-        console.error('Failed to clear corrupted session:', e);
-      }
-    } finally {
-      setIsHydrated(true);
-      setLoading(false);
-    }
+    setLoading(false);
   }, []);
-
-
 
   // Derive userRole from user metadata or profile
   const getUserRole = (authUser, profile) => {
-    // Check user metadata first
+    // Check user metadata first (most reliable)
     if (authUser?.user_metadata?.role) {
-      return authUser?.user_metadata?.role;
+      return authUser.user_metadata.role;
     }
     
-    // Check profile for role information
+    // Fallback to profile table
     if (profile?.role) {
-      return profile?.role;
+      return profile.role;
     }
     
-    // Check if email suggests admin (email contains 'admin')
-    if (authUser?.email?.toLowerCase()?.includes('admin')) {
-      return 'admin';
-    }
-    
-    // Default to customer
+    // Default to customer if no role is found
     return 'customer';
   };
 
@@ -80,12 +48,16 @@ export function AuthProvider({ children }) {
     
     try {
       const { data, error } = await supabase
-        ?.from('user_profiles')
-        ?.select('*')
-        ?.eq('id', userId)
-        ?.single();
+        .from('user_profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
       
-      if (!error && data) {
+      if (error) {
+        // This is not a critical error, but good to log
+        console.warn('Could not fetch user profile:', error.message);
+        setUserProfile(null); // Ensure profile is cleared if fetch fails
+      } else if (data) {
         setUserProfile(data);
       }
     } catch (error) {
@@ -95,23 +67,21 @@ export function AuthProvider({ children }) {
 
   // Listen for Supabase auth state changes
   useEffect(() => {
-    if (!isHydrated) return;
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      // Only update user if session actually exists
-      if (session?.user) {
-        setUser(session.user);
-        if (session.user.id) {
-          loadUserProfile(session.user.id);
-        }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      setLoading(true);
+      const sessionUser = session?.user || null;
+      setUser(sessionUser);
+
+      if (sessionUser) {
+        await loadUserProfile(sessionUser.id);
       } else {
-        // No session, clear user and profile
-        setUser(null);
         setUserProfile(null);
       }
+      setLoading(false);
     });
 
     return () => subscription?.unsubscribe();
-  }, [supabase, isHydrated, user?.id]);
+  }, [supabase]);
 
   // Derive userRole from user and userProfile
   const userRole = user ? getUserRole(user, userProfile) : null;
@@ -127,7 +97,7 @@ export function AuthProvider({ children }) {
     loading,
     isAuthenticated: !!user,
     signUp: async (email, password, metadata = {}) => {
-      const { data, error } = await supabase?.auth?.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -137,23 +107,13 @@ export function AuthProvider({ children }) {
       return { data, error };
     },
     signIn: async (email, password) => {
-      const { data, error } = await supabase?.auth?.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
       });
       return { data, error };
     },
     signOut: async () => {
-      // Clear localStorage first
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.removeItem('vf_session');
-        } catch (err) {
-          console.error('Session clear error:', err);
-        }
-      }
-      
-      // Then call Supabase signOut
       try {
         const { error } = await supabase.auth.signOut();
         
@@ -161,9 +121,13 @@ export function AuthProvider({ children }) {
         setUser(null);
         setUserProfile(null);
         
+        if (error) {
+          console.error('Sign out error:', error);
+        }
+        
         return { error };
       } catch (err) {
-        console.error('Logout error:', err);
+        console.error('Critical sign out error:', err);
         // Force clear state on error
         setUser(null);
         setUserProfile(null);
@@ -171,13 +135,13 @@ export function AuthProvider({ children }) {
       }
     },
     resetPassword: async (email) => {
-      const { data, error } = await supabase?.auth?.resetPasswordForEmail(email, {
-        redirectTo: `${window.location?.origin}/reset-password`
+      const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`
       });
       return { data, error };
     },
     updatePassword: async (newPassword) => {
-      const { data, error } = await supabase?.auth?.updateUser({
+      const { data, error } = await supabase.auth.updateUser({
         password: newPassword
       });
       return { data, error };
@@ -187,11 +151,11 @@ export function AuthProvider({ children }) {
       
       try {
         const { data, error } = await supabase
-          ?.from('user_profiles')
-          ?.update(updates)
-          ?.eq('id', user?.id)
-          ?.select()
-          ?.single();
+          .from('user_profiles')
+          .update(updates)
+          .eq('id', user.id)
+          .select()
+          .single();
         
         if (!error && data) {
           setUserProfile(data);
