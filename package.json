@@ -33,8 +33,8 @@
     "warning": "🚨 CRITICAL: DO NOT REMOVE OR MODIFY ABOVE DEPENDENCIES - Required for Next.js app functionality"
   },
   "scripts": {
-    "dev": "NODE_OPTIONS='--max-old-space-size=2048' next dev -p 4028",
-    "build": "NODE_OPTIONS='--max-old-space-size=2048' next build",
+    "dev": "cross-env NODE_OPTIONS='--max-old-space-size=2048' next dev -p 4028",
+    "build": "cross-env NODE_OPTIONS='--max-old-space-size=2048' next build",
     "start": "next start -p 4028",
     "lint": "next lint",
     "lint:fix": "next lint --fix",
@@ -63,6 +63,7 @@
     "@eslint/eslintrc": "^3",
     "@netlify/plugin-nextjs": "^5.12.0",
     "autoprefixer": "10.4.2",
+    "cross-env": "^10.1.0",
     "eslint": "^9",
     "eslint-config-next": "15.2.4",
     "eslint-config-prettier": "^10.1.1",

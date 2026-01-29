@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../../contexts/AuthContext';
 import { orderService } from '../../services/order.service';
 import { generateInvoice, generateReceipt } from '../../utils/invoiceGenerator';
-import { generateMockOrders, formatOrderForOrderCard } from '../../utils/mockData';
 import OrderCard from './components/OrderCard';
 import OrderFilters from './components/OrderFilters';
 import OrderStats from './components/OrderStats';

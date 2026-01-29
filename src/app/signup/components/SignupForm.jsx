@@ -5,10 +5,12 @@ import { useRouter } from 'next/navigation';
 import PropTypes from 'prop-types';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
+import { createClient } from '@/lib/supabase/client';
 
 export default function SignupForm() {
   const router = useRouter();
   const { signUp } = useAuth();
+  const supabase = createClient();
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -77,7 +79,7 @@ export default function SignupForm() {
 
     setIsLoading(true);
 
-    const { error } = await signUp(formData.email, formData.password, { 
+    const { data, error } = await signUp(formData.email, formData.password, { 
         first_name: formData.firstName, 
         last_name: formData.lastName,
         email: formData.email
@@ -86,9 +88,41 @@ export default function SignupForm() {
     if (error) {
         setErrors({ submit: error.message });
         setIsLoading(false);
-    } else {
-        router.push('/login?message=Signup successful! Please log in.');
+        return;
     }
+
+    // Create user profile in user_profiles table
+    if (data?.user?.id) {
+      try {
+        const { error: profileError } = await supabase
+          .from('user_profiles')
+          .insert([{
+            id: data.user.id,
+            email: formData.email,
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            role: 'customer',
+            total_orders: 0,
+            total_spent: 0,
+            loyalty_points: 0
+          }]);
+
+        if (profileError) {
+          console.error('Profile creation error:', profileError);
+          setErrors({ submit: 'Account created but profile setup failed. Please contact support.' });
+          setIsLoading(false);
+          return;
+        }
+      } catch (err) {
+        console.error('Profile insert error:', err);
+        setErrors({ submit: 'Account created but profile setup failed. Please contact support.' });
+        setIsLoading(false);
+        return;
+      }
+    }
+
+    // Success - redirect to login
+    router.push('/login?message=Signup successful! Please log in.');
   };
 
   return (

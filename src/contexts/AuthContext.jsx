@@ -97,14 +97,34 @@ export function AuthProvider({ children }) {
     loading,
     isAuthenticated: !!user,
     signUp: async (email, password, metadata = {}) => {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: metadata
+      try {
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              first_name: metadata?.first_name || '',
+              last_name: metadata?.last_name || '',
+              role: 'customer',
+              ...metadata
+            }
+          }
+        });
+        
+        if (error) {
+          return { data, error };
         }
-      });
-      return { data, error };
+
+        // The trigger will automatically create the user_profiles record,
+        // but we wait a moment for it to complete
+        if (data?.user?.id) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+
+        return { data, error };
+      } catch (err) {
+        return { data: null, error: err };
+      }
     },
     signIn: async (email, password) => {
       const { data, error } = await supabase.auth.signInWithPassword({
