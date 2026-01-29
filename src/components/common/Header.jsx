@@ -56,6 +56,7 @@ export default function Header() {
   const adminNavigation = [
     { label: 'Home', path: '/' },
     { label: 'Dashboard', path: '/admin-dashboard' },
+    { label: 'Orders', path: '/admin-orders' },
     { label: 'Products', path: '/product-management' },
     { label: 'Analytics', path: '/analytics-dashboard' },
   ];

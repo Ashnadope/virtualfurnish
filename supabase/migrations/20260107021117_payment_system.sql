@@ -198,6 +198,11 @@ CREATE POLICY "Users can view own profile"
     ON user_profiles FOR SELECT
     USING (auth.uid() = id);
 
+CREATE POLICY "Authenticated users can view all profiles"
+    ON user_profiles FOR SELECT
+    TO authenticated
+    USING (true);
+
 CREATE POLICY "Users can update own profile"
     ON user_profiles FOR UPDATE
     USING (auth.uid() = id);
@@ -211,6 +216,21 @@ CREATE POLICY "Users can manage own addresses"
     ON addresses FOR ALL
     USING (auth.uid() = user_id);
 
+CREATE POLICY "Admin can view all addresses"
+    ON addresses FOR SELECT
+    TO authenticated
+    USING (
+        auth.uid() IS NOT NULL AND
+        (
+            auth.uid() = user_id OR
+            EXISTS (
+                SELECT 1 FROM user_profiles
+                WHERE user_profiles.id = auth.uid()
+                AND user_profiles.role = 'admin'
+            )
+        )
+    );
+
 -- Cart Items Policies
 CREATE POLICY "Users can manage own cart"
     ON cart_items FOR ALL
@@ -220,6 +240,21 @@ CREATE POLICY "Users can manage own cart"
 CREATE POLICY "Users can view own orders"
     ON orders FOR SELECT
     USING (auth.uid() = user_id);
+
+CREATE POLICY "Admin can view all orders"
+    ON orders FOR SELECT
+    TO authenticated
+    USING (
+        auth.uid() IS NOT NULL AND
+        (
+            auth.uid() = user_id OR
+            EXISTS (
+                SELECT 1 FROM user_profiles
+                WHERE user_profiles.id = auth.uid()
+                AND user_profiles.role = 'admin'
+            )
+        )
+    );
 
 CREATE POLICY "Users can create orders"
     ON orders FOR INSERT
@@ -236,6 +271,25 @@ CREATE POLICY "Users can view own order items"
         )
     );
 
+CREATE POLICY "Admin can view all order items"
+    ON order_items FOR SELECT
+    TO authenticated
+    USING (
+        auth.uid() IS NOT NULL AND
+        (
+            EXISTS (
+                SELECT 1 FROM orders
+                WHERE orders.id = order_items.order_id
+                AND orders.user_id = auth.uid()
+            ) OR
+            EXISTS (
+                SELECT 1 FROM user_profiles
+                WHERE user_profiles.id = auth.uid()
+                AND user_profiles.role = 'admin'
+            )
+        )
+    );
+
 -- Payment Transactions Policies
 CREATE POLICY "Users can view own transactions"
     ON payment_transactions FOR SELECT
@@ -244,6 +298,25 @@ CREATE POLICY "Users can view own transactions"
             SELECT 1 FROM orders
             WHERE orders.id = payment_transactions.order_id
             AND orders.user_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "Admin can view all transactions"
+    ON payment_transactions FOR SELECT
+    TO authenticated
+    USING (
+        auth.uid() IS NOT NULL AND
+        (
+            EXISTS (
+                SELECT 1 FROM orders
+                WHERE orders.id = payment_transactions.order_id
+                AND orders.user_id = auth.uid()
+            ) OR
+            EXISTS (
+                SELECT 1 FROM user_profiles
+                WHERE user_profiles.id = auth.uid()
+                AND user_profiles.role = 'admin'
+            )
         )
     );
 

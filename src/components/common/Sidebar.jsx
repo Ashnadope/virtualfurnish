@@ -19,6 +19,7 @@ export default function Sidebar({ userRole = 'customer', isCollapsed = false }) 
 
   const adminNavigation = [
     { label: 'Dashboard', path: '/admin-dashboard', icon: 'ChartBarIcon' },
+    { label: 'Orders', path: '/admin-orders', icon: 'ShoppingBagIcon' },
     { label: 'Products', path: '/product-management', icon: 'CubeIcon' },
     { label: 'Analytics', path: '/analytics-dashboard', icon: 'ChartPieIcon' },
   ];

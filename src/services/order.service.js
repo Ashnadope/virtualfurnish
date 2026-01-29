@@ -290,5 +290,136 @@ export const orderService = {
       console.error('Error fetching tracking info:', error);
       throw error;
     }
+  },
+
+  /**
+   * Get all orders (admin view) with customer info
+   * @param {object} filters - Optional filters (status, dateRange, search, customerId)
+   * @returns {Promise<Array>} Array of all orders with customer details
+   */
+  async getAllOrders(filters = {}) {
+    try {
+      const supabase = createClient();
+      
+      let query = supabase?.from('orders')?.select(`
+          id,
+          order_number,
+          status,
+          payment_status,
+          payment_method,
+          subtotal,
+          tax_amount,
+          shipping_amount,
+          discount_amount,
+          total_amount,
+          currency,
+          shipping_address,
+          billing_address,
+          notes,
+          created_at,
+          updated_at,
+          user_id,
+          user_profiles (
+            id,
+            email,
+            first_name,
+            last_name,
+            phone
+          ),
+          order_items (
+            id,
+            name,
+            brand,
+            sku,
+            variant_name,
+            quantity,
+            price,
+            total
+          ),
+          payment_transactions (
+            id,
+            amount,
+            status,
+            gateway,
+            created_at
+          )
+        `)?.order('created_at', { ascending: false });
+
+      // Apply status filter
+      if (filters?.status && filters?.status !== 'all') {
+        query = query?.eq('status', filters?.status);
+      }
+
+      // Apply customer filter
+      if (filters?.customerId) {
+        query = query?.eq('user_id', filters?.customerId);
+      }
+
+      // Apply date range filter
+      if (filters?.startDate) {
+        query = query?.gte('created_at', filters?.startDate);
+      }
+      if (filters?.endDate) {
+        query = query?.lte('created_at', filters?.endDate);
+      }
+
+      // Apply search filter (order number, customer name, or email)
+      if (filters?.search) {
+        query = query?.or(`order_number.ilike.%${filters?.search}%,user_profiles.first_name.ilike.%${filters?.search}%,user_profiles.email.ilike.%${filters?.search}%`);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      // Convert to camelCase with customer info
+      return data?.map(order => ({
+        id: order?.id,
+        orderNumber: order?.order_number,
+        status: order?.status,
+        paymentStatus: order?.payment_status,
+        paymentMethod: order?.payment_method,
+        subtotal: parseFloat(order?.subtotal || 0),
+        taxAmount: parseFloat(order?.tax_amount || 0),
+        shippingAmount: parseFloat(order?.shipping_amount || 0),
+        discountAmount: parseFloat(order?.discount_amount || 0),
+        totalAmount: parseFloat(order?.total_amount || 0),
+        currency: order?.currency,
+        shippingAddress: order?.shipping_address,
+        billingAddress: order?.billing_address,
+        notes: order?.notes,
+        createdAt: order?.created_at,
+        updatedAt: order?.updated_at,
+        customerId: order?.user_id,
+        customer: {
+          id: order?.user_profiles?.id,
+          email: order?.user_profiles?.email,
+          firstName: order?.user_profiles?.first_name,
+          lastName: order?.user_profiles?.last_name,
+          phone: order?.user_profiles?.phone,
+          fullName: `${order?.user_profiles?.first_name || ''} ${order?.user_profiles?.last_name || ''}`.trim()
+        },
+        items: order?.order_items?.map(item => ({
+          id: item?.id,
+          name: item?.name,
+          brand: item?.brand,
+          sku: item?.sku,
+          variantName: item?.variant_name,
+          quantity: item?.quantity,
+          price: parseFloat(item?.price || 0),
+          total: parseFloat(item?.total || 0)
+        })) || [],
+        transactions: order?.payment_transactions?.map(txn => ({
+          id: txn?.id,
+          amount: parseFloat(txn?.amount || 0),
+          status: txn?.status,
+          gateway: txn?.gateway,
+          createdAt: txn?.created_at
+        })) || []
+      })) || [];
+    } catch (error) {
+      console.error('Error fetching all orders:', error);
+      throw error;
+    }
   }
 };
