@@ -21,11 +21,6 @@ export function AuthProvider({ children }) {
   const [isHydrated, setIsHydrated] = useState(false);
   const supabase = createClient();
 
-  // Set initial loading state
-  useEffect(() => {
-    setLoading(false);
-  }, []);
-
   // Derive userRole from user metadata or profile
   const getUserRole = (authUser, profile) => {
     // Check user metadata first (most reliable)
@@ -64,6 +59,33 @@ export function AuthProvider({ children }) {
       console.error('Profile load error:', error);
     }
   };
+
+  // Initialize auth state on mount by checking current session
+  useEffect(() => {
+    const initializeAuth = async () => {
+      try {
+        // Get current session immediately
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session?.user) {
+          setUser(session.user);
+          await loadUserProfile(session.user.id);
+        } else {
+          setUser(null);
+          setUserProfile(null);
+        }
+      } catch (error) {
+        console.error('Auth initialization error:', error);
+        setUser(null);
+        setUserProfile(null);
+      } finally {
+        setLoading(false);
+        setIsHydrated(true);
+      }
+    };
+
+    initializeAuth();
+  }, []);
 
   // Listen for Supabase auth state changes
   useEffect(() => {

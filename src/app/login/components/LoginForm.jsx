@@ -20,11 +20,8 @@ export default function LoginForm() {
   useEffect(() => {
     if (!loading && user) {
       // User is logged in, redirect to dashboard
-      if (userRole === 'admin') {
-        router?.push('/admin-dashboard');
-      } else {
-        router?.push('/customer-dashboard');
-      }
+      const redirectUrl = userRole === 'admin' ? '/admin-dashboard' : '/customer-dashboard';
+      router?.push(redirectUrl);
     }
   }, [user, userRole, loading, router]);
 
@@ -77,6 +74,11 @@ export default function LoginForm() {
         submit: error.message || 'Invalid email or password'
       });
       setIsLoading(false);
+    } else {
+      // Don't manually redirect - let useEffect handle it when user state updates
+      // The auth state listener will trigger the redirect automatically
+      // Just wait a moment for the state to update
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
   };
 

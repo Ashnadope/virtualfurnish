@@ -1,11 +1,22 @@
+'use client';
+
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 import LoginInteractive from './components/LoginInteractive';
 
-export const metadata = {
-  title: 'Login - VirtualFurnish',
-  description: 'Sign in to VirtualFurnish to access your virtual room designer, furniture catalog, and personalized shopping experience at Brosas Furniture Store.',
-};
-
 export default function LoginPage() {
+  const router = useRouter();
+  const { user, userRole, loading } = useAuth();
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (!loading && user) {
+      const redirectUrl = userRole === 'admin' ? '/admin-dashboard' : '/customer-dashboard';
+      router.push(redirectUrl);
+    }
+  }, [user, userRole, loading, router]);
+
   const features = [
     {
       icon: "CubeIcon",
