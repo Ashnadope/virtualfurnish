@@ -92,16 +92,7 @@ export default function AdminOrdersInteractive() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-96">
-        <div className="text-center">
-          <div className="animate-spin mb-4">
-            <Icon name="ArrowPathIcon" size={40} className="text-primary" />
-          </div>
-          <p className="text-muted-foreground">Loading orders...</p>
-        </div>
-      </div>
-    );
+    return null; // Page-level loading spinner handles this
   }
 
   return (

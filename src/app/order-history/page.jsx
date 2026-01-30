@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Sidebar from '@/components/common/Sidebar';
+import Header from '@/components/common/Header';
+import Breadcrumb from '@/components/common/Breadcrumb';
 import { useAuth } from '../../contexts/AuthContext';
 import { orderService } from '../../services/order.service';
 import { generateInvoice, generateReceipt } from '../../utils/invoiceGenerator';
@@ -178,48 +181,52 @@ export default function OrderHistoryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <h1 className="text-3xl font-bold text-gray-900">Order History</h1>
-          <p className="mt-2 text-sm text-gray-600">
-            View and manage your furniture orders
-          </p>
-        </div>
-      </div>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Order Statistics */}
-        {stats && <OrderStats stats={stats} />}
-
-        {/* Filters */}
-        <OrderFilters 
-          filters={filters}
-          onFilterChange={handleFilterChange}
-        />
-
-        {/* Orders List */}
-        {filteredOrders?.length === 0 ? (
-          <EmptyOrders 
-            hasFilters={filters?.status !== 'all' || filters?.search || filters?.startDate}
-            onClearFilters={() => setFilters({ status: 'all', search: '', startDate: null, endDate: null })}
-          />
-        ) : (
-          <div className="space-y-4">
-            {filteredOrders?.map(order => (
-              <OrderCard
-                key={order?.id}
-                order={order}
-                onDownloadInvoice={handleDownloadInvoice}
-                onDownloadReceipt={handleDownloadReceipt}
-                onReorder={handleReorder}
-                onContactSupport={handleContactSupport}
-              />
-            ))}
+    <div className="min-h-screen bg-background">
+      <Sidebar userRole="customer" />
+      <Header userRole="customer" />
+      <main className="lg:ml-sidebar pt-16">
+        <div className="p-6 max-w-7xl mx-auto">
+          <div className="mb-6">
+            <Breadcrumb />
           </div>
-        )}
-      </div>
+          
+          {/* Page Header */}
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-foreground mb-2">Order History</h1>
+            <p className="text-muted-foreground">View and manage your furniture orders</p>
+          </div>
+
+          {/* Order Statistics */}
+          {stats && <OrderStats stats={stats} />}
+
+          {/* Filters */}
+          <OrderFilters 
+            filters={filters}
+            onFilterChange={handleFilterChange}
+          />
+
+          {/* Orders List */}
+          {filteredOrders?.length === 0 ? (
+            <EmptyOrders 
+              hasFilters={filters?.status !== 'all' || filters?.search || filters?.startDate}
+              onClearFilters={() => setFilters({ status: 'all', search: '', startDate: null, endDate: null })}
+            />
+          ) : (
+            <div className="space-y-4">
+              {filteredOrders?.map(order => (
+                <OrderCard
+                  key={order?.id}
+                  order={order}
+                  onDownloadInvoice={handleDownloadInvoice}
+                  onDownloadReceipt={handleDownloadReceipt}
+                  onReorder={handleReorder}
+                  onContactSupport={handleContactSupport}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </main>
     </div>
   );
 }

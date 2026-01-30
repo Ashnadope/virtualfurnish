@@ -100,15 +100,6 @@ export default function Header() {
                 {item?.label}
               </Link>
             ))}
-            
-            {userRole === 'customer' && (
-              <Link
-                href="/order-history"
-                className="px-4 py-2 rounded-md font-body text-nav text-foreground hover:bg-muted transition-fast"
-              >
-                Orders
-              </Link>
-            )}
           </nav>
         </div>
 

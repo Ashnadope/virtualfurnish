@@ -1,17 +1,25 @@
+'use client';
+
+import { useState, useEffect } from 'react';
 import Sidebar from '@/components/common/Sidebar';
 import Header from '@/components/common/Header';
 import Breadcrumb from '@/components/common/Breadcrumb';
 import AdminOrdersInteractive from './components/AdminOrdersInteractive';
-
-// Force dynamic rendering to prevent prerendering during build
-export const dynamic = 'force-dynamic';
-
-export const metadata = {
-  title: 'All Orders - Admin Dashboard - VirtualFurnish',
-  description: 'View and manage all customer orders'
-};
+import LoadingSpinner from './components/LoadingSpinner';
 
 export default function AdminOrders() {
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Simulate initial load completion
+    const timer = setTimeout(() => setIsLoading(false), 500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <Sidebar userRole="admin" />
