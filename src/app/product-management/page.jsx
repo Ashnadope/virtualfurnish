@@ -27,10 +27,15 @@ export default async function ProductManagementPage() {
     sku: product.sku,
     category: product.category,
     price: product.basePrice,
-    stock: product.variants?.reduce((total, v) => total + (v.stockQuantity || 0), 0) || 0,
+    stock: product.stockQuantity || product.variants?.reduce((total, v) => total + (v.stockQuantity || 0), 0) || 0,
     status: product.isActive ? 'active' : 'inactive',
     description: product.description,
     image: product.imageUrl,
+    imageAlt: product.imageAlt,
+    dimensions: product.dimensions,
+    material: product.material,
+    weight: product.weight,
+    color: product.color,
     variants: product.variants || []
   }));
 

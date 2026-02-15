@@ -1,21 +1,60 @@
+'use client';
+
+import { useState, useEffect } from 'react';
 import Sidebar from '@/components/common/Sidebar';
 import Header from '@/components/common/Header';
 import Breadcrumb from '@/components/common/Breadcrumb';
 import CustomerDashboardInteractive from './components/CustomerDashboardInteractive';
-
-// Force dynamic rendering to prevent prerendering during build
-export const dynamic = 'force-dynamic';
-
-export const metadata = {
-  title: 'Customer Dashboard - VirtualFurnish',
-  description: 'Access virtual room design tools, browse furniture catalog, and manage your orders at Brosas Furniture Store.'
-};
+import SavedDesigns from './components/SavedDesigns';
+import { useAuth } from '@/contexts/AuthContext';
+import { orderService } from '@/services/order.service';
+import { createClient } from '@/lib/supabase/client';
 
 export default function CustomerDashboard() {
+  const { user } = useAuth();
+  const [orderCount, setOrderCount] = useState(0);
+  const [userName, setUserName] = useState('Customer');
+
+  useEffect(() => {
+    if (user?.id) {
+      loadUserData();
+      loadOrderCount();
+    }
+  }, [user?.id]);
+
+  const loadUserData = async () => {
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('full_name')
+        .eq('user_id', user.id)
+        .single();
+
+      if (data?.full_name) {
+        // Extract first name (everything before the first space)
+        const firstName = data.full_name.split(' ')[0];
+        setUserName(firstName);
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error);
+    }
+  };
+
+  const loadOrderCount = async () => {
+    try {
+      const orders = await orderService.getUserOrders(user.id);
+      setOrderCount(orders?.length || 0);
+    } catch (error) {
+      console.error('Error loading order count:', error);
+    }
+  };
+
   const dashboardData = {
-    userName: "Maryjoy and Joel",
+    userName: userName,
     savedDesigns: 5,
     wishlistItems: 12,
+    orderCount: orderCount,
     actionTiles: [
     {
       id: 1,
@@ -36,7 +75,7 @@ export default function CustomerDashboard() {
     {
       id: 3,
       title: "View My Orders",
-      description: "Track your purchases and manage delivery schedules",
+      description: `You have ${orderCount} order${orderCount !== 1 ? 's' : ''}. Track purchases and manage delivery schedules`,
       icon: "ShoppingBagIcon",
       href: "/order-history",
       bgColor: "bg-gradient-to-br from-accent to-accent/80"
@@ -156,6 +195,11 @@ export default function CustomerDashboard() {
           </div>
           
           <CustomerDashboardInteractive initialData={dashboardData} />
+          
+          {/* Saved Room Designs Section */}
+          <div className="mt-8">
+            <SavedDesigns />
+          </div>
         </div>
       </main>
     </div>);

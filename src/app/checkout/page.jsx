@@ -26,10 +26,12 @@ export default function CheckoutPage() {
     city: '',
     state: '',
     postal_code: '',
+    phone: '',
     country: 'PH'
   })
   const [isEditingAddress, setIsEditingAddress] = useState(false)
   const [addressErrors, setAddressErrors] = useState({})
+  const [paymentInitialized, setPaymentInitialized] = useState(false)
 
   useEffect(() => {
     async function initializeCheckout() {
@@ -87,6 +89,7 @@ export default function CheckoutPage() {
             city: billingAddress?.city || '',
             state: billingAddress?.state || '',
             postal_code: billingAddress?.postal_code || '',
+            phone: billingAddress?.phone || profile?.phone || '',
             country: billingAddress?.country || 'PH'
           })
         } else {
@@ -137,11 +140,20 @@ export default function CheckoutPage() {
   useEffect(() => {
     async function initializePayment() {
       if (currentStep !== 3 || !orderData || !customerInfo) return
+      
+      // Prevent re-initialization if already initialized for this session
+      if (paymentInitialized && clientSecret) {
+        console.log('Payment already initialized, skipping...')
+        return
+      }
 
       try {
+        console.log('Initializing payment...', { orderData, customerInfo, shippingAddress })
+        
         // Validate shipping address before creating payment intent
         const validationErrors = validateShippingAddress()
         if (Object.keys(validationErrors)?.length > 0) {
+          console.warn('Shipping validation failed:', validationErrors)
           setCurrentStep(2)
           setAddressErrors(validationErrors)
           return
@@ -150,21 +162,34 @@ export default function CheckoutPage() {
         // Update customer info with shipping address
         const updatedCustomerInfo = {
           ...customerInfo,
-          shipping: shippingAddress
+          shipping: shippingAddress,
+          billing: {
+            ...(customerInfo?.billing || {}),
+            ...shippingAddress
+          },
+          phone: customerInfo?.phone || shippingAddress?.phone || ''
         }
+
+        console.log('Updated customer info:', updatedCustomerInfo)
+
+        // Shipping address will be saved by the Edge Function when creating the order
 
         const validationResult = paymentService?.validatePhilippineCompliance(updatedCustomerInfo)
         if (validationResult?.length > 0) {
+          console.warn('Philippine compliance validation failed:', validationResult)
           setError(validationResult?.join(', '))
           return
         }
 
         if (paymentMethod === 'card') {
+          console.log('Creating payment intent...')
           const paymentData = await paymentService?.createPaymentIntent(
             orderData, 
             updatedCustomerInfo, 
             'card'
           )
+
+          console.log('Payment intent created:', paymentData)
 
           if (paymentData?.clientSecret) {
             setClientSecret(paymentData?.clientSecret)
@@ -174,15 +199,30 @@ export default function CheckoutPage() {
               orderNumber: paymentData?.orderNumber
             }))
             setCustomerInfo(updatedCustomerInfo)
+            setPaymentInitialized(true)
+            console.log('Payment initialization successful')
           } else {
-            setError('Failed to initialize payment')
+            console.error('No client secret in payment data:', paymentData)
+            setError('Failed to initialize payment - no client secret returned')
           }
         } else {
+          // For GCash, ensure shipping is included in orderData
+          setOrderData(prev => ({
+            ...prev,
+            shipping: shippingAddress
+          }))
           setCustomerInfo(updatedCustomerInfo)
+          setPaymentInitialized(true)
         }
       } catch (err) {
         console.error('Payment initialization error:', err)
-        setError(err?.message || 'Failed to initialize payment')
+        console.error('Error details:', {
+          message: err?.message,
+          name: err?.name,
+          stack: err?.stack,
+          context: err?.context
+        })
+        setError(`Payment initialization failed: ${err?.message || 'Unknown error'}`)
       }
     }
 
@@ -208,6 +248,10 @@ export default function CheckoutPage() {
       errors.postal_code = 'Postal code is required'
     } else if (!/^\d{4}$/?.test(shippingAddress?.postal_code)) {
       errors.postal_code = 'Invalid Philippine postal code (4 digits required)'
+    }
+
+    if (!shippingAddress?.phone?.trim()) {
+      errors.phone = 'Phone number is required'
     }
     
     return errors
@@ -238,6 +282,10 @@ export default function CheckoutPage() {
     }
     
     setIsEditingAddress(false)
+    // Reset payment state when moving to payment step
+    setPaymentInitialized(false)
+    setClientSecret('')
+    setError('')
     setCurrentStep(3)
   }
 
@@ -619,6 +667,23 @@ export default function CheckoutPage() {
                           />
                         </div>
                       </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Phone Number *
+                        </label>
+                        <input
+                          type="text"
+                          value={shippingAddress?.phone}
+                          onChange={(e) => handleAddressChange('phone', e?.target?.value)}
+                          className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                            addressErrors?.phone ? 'border-red-500' : 'border-gray-300'
+                          }`}
+                          placeholder="e.g. +63 917 123 4567"
+                        />
+                        {addressErrors?.phone && (
+                          <p className="mt-1 text-sm text-red-600">{addressErrors?.phone}</p>
+                        )}
+                      </div>
                     </div>
                   )}
 
@@ -647,7 +712,12 @@ export default function CheckoutPage() {
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-lg font-semibold text-gray-900">Shipping Address</h3>
                       <button
-                        onClick={() => setCurrentStep(2)}
+                        onClick={() => {
+                          setPaymentInitialized(false)
+                          setClientSecret('')
+                          setError('')
+                          setCurrentStep(2)
+                        }}
                         className="text-blue-600 hover:text-blue-700 font-medium text-sm"
                       >
                         Change

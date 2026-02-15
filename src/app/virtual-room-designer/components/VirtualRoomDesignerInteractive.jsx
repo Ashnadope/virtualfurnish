@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import PropTypes from 'prop-types';
 import Sidebar from '@/components/common/Sidebar';
 import Header from '@/components/common/Header';
@@ -12,9 +13,15 @@ import PropertiesPanel from './PropertiesPanel';
 import AISuggestionControls from './AISuggestionControls';
 import ImageUploadModal from './ImageUploadModal';
 import Icon from '@/components/ui/AppIcon';
+import { roomDesignService } from '@/services/roomDesign.service';
 
 export default function VirtualRoomDesignerInteractive({ initialFurnitureData }) {
+  const searchParams = useSearchParams();
+  const designId = searchParams.get('design');
+  
   const [uploadedImage, setUploadedImage] = useState(null);
+  const [currentDesignId, setCurrentDesignId] = useState(null);
+  const [roomImagePath, setRoomImagePath] = useState(null);
   const [placedFurniture, setPlacedFurniture] = useState([]);
   const [selectedFurnitureId, setSelectedFurnitureId] = useState(null);
   const [history, setHistory] = useState([]);
@@ -27,19 +34,108 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
   const [showPropertiesPanel, setShowPropertiesPanel] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState(null);
   const [showAnalysisPanel, setShowAnalysisPanel] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastSaved, setLastSaved] = useState(null);
+  const [isLoadingDesign, setIsLoadingDesign] = useState(false);
 
+  // Load design from URL parameter if present
   useEffect(() => {
-    const savedDesign = localStorage.getItem('virtualRoomDesign');
-    if (savedDesign) {
-      try {
-        const design = JSON.parse(savedDesign);
-        setUploadedImage(design?.image);
-        setPlacedFurniture(design?.furniture || []);
-      } catch (error) {
-        console.error('Failed to load saved design:', error);
+    if (designId) {
+      loadDesignFromDatabase(designId);
+    } else {
+      // Try to load from localStorage only if no URL parameter
+      const savedDesign = localStorage.getItem('virtualRoomDesign');
+      if (savedDesign) {
+        try {
+          const design = JSON.parse(savedDesign);
+          setUploadedImage(design?.image);
+          setPlacedFurniture(design?.furniture || []);
+        } catch (error) {
+          console.error('Failed to load saved design:', error);
+        }
       }
     }
-  }, []);
+  }, [designId]);
+
+  const loadDesignFromDatabase = async (id) => {
+    try {
+      setIsLoadingDesign(true);
+      console.log('Loading design from database:', id);
+
+      const { data, error } = await roomDesignService.getDesignById(id);
+      
+      if (error) {
+        console.error('Error loading design:', error);
+        alert('Failed to load design');
+        return;
+      }
+
+      console.log('Design loaded:', data);
+
+      // Get signed URL for the room image
+      const { signedUrl } = await roomDesignService.getSignedUrl(data.room_image_url);
+
+      // Set design data
+      setCurrentDesignId(data.id);
+      setRoomImagePath(data.room_image_url);
+      setUploadedImage(signedUrl);
+      setPlacedFurniture(data.design_data?.furniture || []);
+      setAiAnalysis(data.design_data?.aiAnalysis || null);
+      setLastSaved(new Date(data.updated_at));
+
+      console.log('Design loaded successfully, furniture count:', data.design_data?.furniture?.length);
+    } catch (error) {
+      console.error('Error in loadDesignFromDatabase:', error);
+      alert('Failed to load design');
+    } finally {
+      setIsLoadingDesign(false);
+    }
+  };
+
+  // Auto-save design when furniture changes
+  useEffect(() => {
+    if (currentDesignId && placedFurniture.length >= 0) {
+      const autoSaveTimer = setTimeout(() => {
+        saveDesignToDatabase();
+      }, 2000); // Auto-save after 2 seconds of no changes
+
+      return () => clearTimeout(autoSaveTimer);
+    }
+  }, [placedFurniture, currentDesignId]);
+
+  const saveDesignToDatabase = async () => {
+    if (!currentDesignId) {
+      console.log('No design ID, skipping save');
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      console.log('Saving design to database...', {
+        designId: currentDesignId,
+        furnitureCount: placedFurniture.length
+      });
+
+      const { error } = await roomDesignService.updateDesign(currentDesignId, {
+        design_data: {
+          furniture: placedFurniture,
+          aiAnalysis: aiAnalysis
+        }
+      });
+
+      if (error) {
+        console.error('Error saving design:', error);
+        return;
+      }
+
+      setLastSaved(new Date());
+      console.log('Design saved successfully');
+    } catch (error) {
+      console.error('Error in saveDesignToDatabase:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const saveToHistory = (newState) => {
     const newHistory = history?.slice(0, historyIndex + 1);
@@ -48,10 +144,14 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
     setHistoryIndex(newHistory?.length - 1);
   };
 
-  const handleImageUpload = async (imageUrl) => {
-    setUploadedImage(imageUrl);
+  const handleImageUpload = async (uploadData) => {
+    console.log('=== Room upload data received ===', uploadData);
+    
+    setUploadedImage(uploadData.imageUrl);
+    setRoomImagePath(uploadData.imagePath);
+    setCurrentDesignId(uploadData.designId);
     setPlacedFurniture([]);
-    saveToHistory({ image: imageUrl, furniture: [] });
+    saveToHistory({ image: uploadData.imageUrl, furniture: [] });
     
     // Automatically trigger AI analysis after image upload
     setIsProcessingAI(true);
@@ -62,7 +162,7 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
-          imageUrl,
+          imageUrl: uploadData.imageUrl,
           furnitureData: initialFurnitureData 
         }),
       });
@@ -288,28 +388,55 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
             <Breadcrumb />
           </div>
 
-          <div className="mb-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="font-heading font-bold text-2xl text-foreground mb-2">
-                  Virtual Room Designer
-                </h1>
-                <p className="font-body text-muted-foreground">
-                  Upload your room photo and get AI-powered furniture recommendations
-                </p>
-              </div>
-
-              {!uploadedImage && (
-                <button
-                  onClick={() => setShowUploadModal(true)}
-                  className="flex items-center gap-2 px-6 py-3 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-fast"
-                >
-                  <Icon name="CloudArrowUpIcon" size={20} variant="solid" />
-                  <span className="font-body font-medium">Upload Room Photo</span>
-                </button>
-              )}
+          {isLoadingDesign ? (
+            <div className="flex flex-col items-center justify-center py-20">
+              <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4" />
+              <p className="font-body text-lg text-foreground">Loading your design...</p>
+              <p className="font-body text-sm text-muted-foreground mt-2">Please wait while we retrieve your room design</p>
             </div>
-          </div>
+          ) : (
+            <>
+              <div className="mb-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h1 className="font-heading font-bold text-2xl text-foreground mb-2">
+                      Virtual Room Designer
+                    </h1>
+                    <p className="font-body text-muted-foreground">
+                      Upload your room photo and get AI-powered furniture recommendations
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    {currentDesignId && (
+                      <div className="flex items-center gap-2 text-sm">
+                        {isSaving ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                            <span className="font-body text-muted-foreground">Saving...</span>
+                          </>
+                        ) : lastSaved ? (
+                          <>
+                            <Icon name="CheckCircleIcon" size={16} variant="solid" className="text-success" />
+                            <span className="font-body text-muted-foreground">
+                              Saved {new Date(lastSaved).toLocaleTimeString()}
+                            </span>
+                          </>
+                        ) : null}
+                      </div>
+                    )}
+                    {!uploadedImage && (
+                      <button
+                        onClick={() => setShowUploadModal(true)}
+                        className="flex items-center gap-2 px-6 py-3 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-fast"
+                      >
+                        <Icon name="CloudArrowUpIcon" size={20} variant="solid" />
+                        <span className="font-body font-medium">Upload Room Photo</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
 
           {uploadedImage ? (
             <div className="flex flex-col gap-4">
@@ -547,6 +674,8 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
                 <span className="font-body font-medium">Upload Room Photo</span>
               </button>
             </div>
+          )}
+          </>
           )}
         </div>
       </main>

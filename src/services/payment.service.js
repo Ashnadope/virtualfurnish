@@ -10,6 +10,12 @@ export const paymentService = {
   async createPaymentIntent(orderData, customerInfo, paymentMethod = 'card') {
     const supabase = createClient()
 
+    console.log('Invoking create-payment-intent function with:', {
+      orderData,
+      customerInfo,
+      paymentMethod
+    })
+
     const { data, error } = await supabase?.functions?.invoke('create-payment-intent', {
       body: {
         orderData,
@@ -20,9 +26,16 @@ export const paymentService = {
 
     if (error) {
       console.error('Payment intent creation error:', error)
+      console.error('Error context:', {
+        name: error?.name,
+        message: error?.message,
+        context: error?.context,
+        status: error?.status
+      })
       throw new Error(error.message || 'Failed to create payment intent')
     }
 
+    console.log('Payment intent response:', data)
     return data
   },
 
@@ -53,19 +66,55 @@ export const paymentService = {
   async processGCashPayment(orderData, customerInfo) {
     const supabase = createClient()
 
-    const { data, error } = await supabase?.functions?.invoke('process-gcash-payment', {
-      body: {
-        orderData,
-        customerInfo
-      }
+    console.log('Invoking process-gcash-payment function with:', {
+      orderData,
+      customerInfo
     })
 
-    if (error) {
-      console.error('GCash payment error:', error)
-      throw new Error(error.message || 'Failed to process GCash payment')
-    }
+    try {
+      // Add timeout wrapper
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Request timeout after 30 seconds')), 30000)
+      )
 
-    return data
+      const invokePromise = supabase?.functions?.invoke('process-gcash-payment', {
+        body: {
+          orderData,
+          customerInfo
+        }
+      })
+
+      const response = await Promise.race([invokePromise, timeoutPromise])
+      const { data, error } = response
+
+      if (error) {
+        console.error('GCash payment error:', error)
+        console.error('Error context:', {
+          name: error?.name,
+          message: error?.message,
+          context: error?.context,
+          status: error?.status
+        })
+        
+        // Try to get more details from the error response
+        if (error?.context instanceof Response) {
+          try {
+            const errorBody = await error.context.text()
+            console.error('Error response body:', errorBody)
+          } catch (e) {
+            console.error('Could not read error response body')
+          }
+        }
+        
+        throw new Error(error.message || 'Failed to process GCash payment')
+      }
+
+      console.log('GCash payment response:', data)
+      return data
+    } catch (err) {
+      console.error('GCash payment invocation failed:', err)
+      throw err
+    }
   },
 
   /**

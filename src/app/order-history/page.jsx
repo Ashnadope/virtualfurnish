@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Sidebar from '@/components/common/Sidebar';
 import Header from '@/components/common/Header';
@@ -19,7 +19,6 @@ export default function OrderHistoryPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const [orders, setOrders] = useState([]);
-  const [filteredOrders, setFilteredOrders] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -30,78 +29,8 @@ export default function OrderHistoryPage() {
     endDate: null
   });
 
-  // Load orders on mount
-  useEffect(() => {
-    if (authLoading) {
-      setLoading(true);
-      return;
-    }
-
-    if (!user?.id) {
-      router.push('/login');
-      setLoading(false);
-      return;
-    }
-
-    loadOrders();
-    loadStats();
-  }, [user?.id, authLoading, router]);
-
-  // Apply filters when they change
-  useEffect(() => {
-    applyFilters();
-  }, [filters, orders]);
-
-  const loadOrders = async () => {
-    if (!user?.id) {
-      setLoading(false);
-      return;
-    }
-    
-    try {
-      setLoading(true);
-      setError('');
-      
-      // Fetch real orders from Supabase
-      if (user?.id) {
-        // Otherwise fetch from Supabase
-        const data = await orderService?.getUserOrders(user?.id, filters);
-        setOrders(data || []);
-      }
-    } catch (err) {
-      console.error('Error loading orders:', err);
-      setError(err?.message || 'Failed to load orders. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadStats = async () => {
-    if (!user?.id) return;
-    
-    try {
-      // Calculate stats from fetched orders
-      if (orders.length > 0) {
-        const totalOrders = orders.length;
-        const totalSpent = orders.reduce((sum, order) => sum + parseFloat(order.totalAmount || 0), 0);
-        const pendingOrders = orders.filter(o => o.status === 'pending').length;
-        
-        setStats({
-          totalOrders,
-          totalSpent,
-          pendingOrders,
-          averageOrderValue: totalOrders > 0 ? totalSpent / totalOrders : 0
-        });
-      } else {
-        const statsData = await orderService?.getOrderStats(user?.id);
-        setStats(statsData);
-      }
-    } catch (err) {
-      console.error('Error loading stats:', err);
-    }
-  };
-
-  const applyFilters = () => {
+  // Apply filters using useMemo to prevent infinite loops
+  const filteredOrders = useMemo(() => {
     let filtered = [...orders];
 
     // Status filter
@@ -134,7 +63,84 @@ export default function OrderHistoryPage() {
       );
     }
 
-    setFilteredOrders(filtered);
+    return filtered;
+  }, [orders, filters]);
+
+  // Load orders on mount
+  useEffect(() => {
+    console.log('[OrderHistory] useEffect triggered', { authLoading, userId: user?.id, ordersCount: orders.length });
+    
+    if (authLoading) {
+      console.log('[OrderHistory] Still auth loading, waiting...');
+      setLoading(true);
+      return;
+    }
+
+    if (!user?.id) {
+      console.log('[OrderHistory] No user, redirecting to login');
+      router.push('/login');
+      setLoading(false);
+      return;
+    }
+
+    console.log('[OrderHistory] Loading orders and stats...');
+    loadOrders();
+    loadStats();
+  }, [user?.id, authLoading, router]);
+
+  const loadOrders = async () => {
+    console.log('[OrderHistory] loadOrders called', { userId: user?.id });
+    
+    if (!user?.id) {
+      console.log('[OrderHistory] No user in loadOrders');
+      setLoading(false);
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      setError('');
+      
+      console.log('[OrderHistory] Fetching orders from Supabase...');
+      // Fetch real orders from Supabase
+      if (user?.id) {
+        // Otherwise fetch from Supabase
+        const data = await orderService?.getUserOrders(user?.id, filters);
+        console.log('[OrderHistory] Orders fetched:', data?.length);
+        setOrders(data || []);
+      }
+    } catch (err) {
+      console.error('Error loading orders:', err);
+      setError(err?.message || 'Failed to load orders. Please try again.');
+    } finally {
+      console.log('[OrderHistory] loadOrders finished, setting loading=false');
+      setLoading(false);
+    }
+  };
+
+  const loadStats = async () => {
+    if (!user?.id) return;
+    
+    try {
+      // Calculate stats from fetched orders
+      if (orders.length > 0) {
+        const totalOrders = orders.length;
+        const totalSpent = orders.reduce((sum, order) => sum + parseFloat(order.totalAmount || 0), 0);
+        const pendingOrders = orders.filter(o => o.status === 'pending').length;
+        
+        setStats({
+          totalOrders,
+          totalSpent,
+          pendingOrders,
+          averageOrderValue: totalOrders > 0 ? totalSpent / totalOrders : 0
+        });
+      } else {
+        const statsData = await orderService?.getOrderStats(user?.id);
+        setStats(statsData);
+      }
+    } catch (err) {
+      console.error('Error loading stats:', err);
+    }
   };
 
   const handleFilterChange = (newFilters) => {

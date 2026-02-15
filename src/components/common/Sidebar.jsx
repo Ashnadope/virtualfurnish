@@ -1,15 +1,32 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
-
+import { useAuth } from '@/contexts/AuthContext';
+import { orderService } from '@/services/order.service';
 
 export default function Sidebar({ userRole = 'customer', isCollapsed = false }) {
   const pathname = usePathname();
+  const { user } = useAuth();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const [cartCount] = useState(3);
+  const [orderCount, setOrderCount] = useState(0);
+
+  useEffect(() => {
+    if (userRole === 'customer' && user?.id) {
+      loadOrderCount();
+    }
+  }, [userRole, user?.id]);
+
+  const loadOrderCount = async () => {
+    try {
+      const orders = await orderService.getUserOrders(user.id);
+      setOrderCount(orders?.length || 0);
+    } catch (error) {
+      console.error('Error loading order count:', error);
+    }
+  };
 
   const customerNavigation = [
     { label: 'Dashboard', path: '/customer-dashboard', icon: 'HomeIcon' },
@@ -82,9 +99,9 @@ export default function Sidebar({ userRole = 'customer', isCollapsed = false }) 
               >
                 <Icon name={item?.icon} size={20} variant={isActive(item?.path) ? 'solid' : 'outline'} />
                 {!isCollapsed && <span>{item?.label}</span>}
-                {item?.label === 'My Orders' && userRole === 'customer' && cartCount > 0 && !isCollapsed && (
+                {item?.label === 'My Orders' && userRole === 'customer' && orderCount > 0 && !isCollapsed && (
                   <span className="ml-auto bg-accent text-accent-foreground text-xs font-semibold px-2 py-0.5 rounded-full">
-                    {cartCount}
+                    {orderCount}
                   </span>
                 )}
               </Link>

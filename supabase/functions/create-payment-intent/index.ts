@@ -88,28 +88,12 @@ serve(async (req) => {
         .eq('id', user.id)
     }
 
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: totalAmount,
-      currency: orderData.currency || 'php',
-      customer: stripeCustomer.id,
-      description: `VirtualFurnish Order ${orderNumber}`,
-      metadata: {
-        order_number: orderNumber,
-        user_id: user.id,
-        customer_name: customerData.name,
-        customer_email: customerInfo.email
-      },
-      automatic_payment_methods: {
-        enabled: true,
-      },
-    })
-
+    // Create the order first so we can include `order_id` in the PaymentIntent metadata
     const { data: order, error: orderError } = await supabaseClient
       .from('orders')
       .insert({
         user_id: user.id,
         order_number: orderNumber,
-        payment_intent_id: paymentIntent.id,
         payment_method: paymentMethod,
         subtotal: orderData.subtotal,
         tax_amount: orderData.tax || 0,
@@ -133,6 +117,31 @@ serve(async (req) => {
       )
     }
 
+    // Create PaymentIntent with order metadata now that we have an order id
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: totalAmount,
+      currency: orderData.currency || 'php',
+      customer: stripeCustomer.id,
+      description: `VirtualFurnish Order ${orderNumber}`,
+      metadata: {
+        order_number: orderNumber,
+        order_id: order.id,
+        user_id: user.id,
+        customer_name: customerData.name,
+        customer_email: customerInfo.email
+      },
+      automatic_payment_methods: {
+        enabled: true,
+      },
+    })
+
+    // Update the order with the payment intent id
+    try {
+      await supabaseClient.from('orders').update({ payment_intent_id: paymentIntent.id }).eq('id', order.id)
+    } catch (e) {
+      console.error('Failed updating order with payment_intent_id:', e)
+    }
+
     const orderItems = orderData.items.map((item: any) => ({
       order_id: order.id,
       product_id: item.product_id || item.id || null,
@@ -154,7 +163,8 @@ serve(async (req) => {
       amount: orderData.total,
       currency: orderData.currency || 'PHP',
       status: 'pending',
-      gateway: 'stripe'
+      gateway: 'stripe',
+      gateway_transaction_id: null
     })
 
     return new Response(

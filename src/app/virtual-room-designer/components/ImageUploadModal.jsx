@@ -4,22 +4,54 @@ import { useState, useRef } from 'react';
 import PropTypes from 'prop-types';
 import Icon from '@/components/ui/AppIcon';
 import AppImage from '@/components/ui/AppImage';
+import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function ImageUploadModal({ isOpen, onClose, onUpload }) {
+  const { user } = useAuth();
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
   const fileInputRef = useRef(null);
 
   const handleFileSelect = (file) => {
-    if (file && (file?.type === 'image/jpeg' || file?.type === 'image/png')) {
-      setSelectedFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreviewUrl(reader?.result);
-      };
-      reader?.readAsDataURL(file);
+    console.log('=== File selection started ===');
+    console.log('File:', file);
+    
+    if (!file) {
+      console.log('No file provided');
+      return;
     }
+
+    if (file.type !== 'image/jpeg' && file.type !== 'image/png') {
+      console.error('Invalid file type:', file.type);
+      setError('Please select a JPEG or PNG image');
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      console.error('File too large:', file.size);
+      setError('Image size must be less than 10MB');
+      return;
+    }
+
+    console.log('File validation passed');
+    setError('');
+    setSelectedFile(file);
+    
+    // Create preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      console.log('Preview created');
+      setPreviewUrl(reader.result);
+    };
+    reader.onerror = (error) => {
+      console.error('Error reading file:', error);
+      setError('Failed to read file');
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleFileInputChange = (e) => {
@@ -47,10 +79,108 @@ export default function ImageUploadModal({ isOpen, onClose, onUpload }) {
     }
   };
 
-  const handleUpload = () => {
-    if (previewUrl) {
-      onUpload(previewUrl);
+  const handleUpload = async () => {
+    if (!selectedFile || !user) {
+      setError('Please select a file and ensure you are logged in');
+      return;
+    }
+
+    try {
+      setUploading(true);
+      setError('');
+      
+      console.log('=== Starting room upload ===');
+      console.log('User ID:', user.id);
+      console.log('File:', selectedFile.name, selectedFile.size, 'bytes');
+
+      const supabase = createClient();
+      
+      // Create unique filename with timestamp
+      const timestamp = Date.now();
+      const fileExt = selectedFile.name.split('.').pop();
+      const fileName = `room-${timestamp}.${fileExt}`;
+      const filePath = `${user.id}/${fileName}`;
+      
+      console.log('Upload path:', filePath);
+      console.log('Uploading to room-uploads bucket...');
+
+      // Upload file to Supabase Storage (private bucket)
+      // Set timeout for upload to prevent indefinite hanging
+      const uploadPromise = supabase.storage
+        .from('room-uploads')
+        .upload(filePath, selectedFile, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Upload timeout - check if room-uploads bucket exists and policies are applied')), 10000)
+      );
+
+      const { data: uploadData, error: uploadError } = await Promise.race([
+        uploadPromise,
+        timeoutPromise
+      ]).catch(err => ({ data: null, error: err }));
+
+      console.log('Upload response:', { data: uploadData, error: uploadError });
+
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        throw new Error(`Upload failed: ${uploadError.message}`);
+      }
+
+      console.log('Upload successful!', uploadData);
+
+      // Get signed URL for private bucket (valid for 1 hour)
+      console.log('Creating signed URL...');
+      const { data: urlData, error: urlError } = await supabase.storage
+        .from('room-uploads')
+        .createSignedUrl(filePath, 3600);
+
+      if (urlError) {
+        console.error('Error creating signed URL:', urlError);
+        throw new Error(`Failed to create signed URL: ${urlError.message}`);
+      }
+
+      console.log('Signed URL created:', urlData.signedUrl);
+
+      // Create room design entry in database
+      console.log('Creating room design entry...');
+      const { data: designData, error: designError } = await supabase
+        .from('room_designs')
+        .insert([
+          {
+            user_id: user.id,
+            name: `Room Design - ${new Date().toLocaleDateString()}`,
+            room_image_url: filePath, // Store path, not signed URL (signed URLs expire)
+            design_data: { furniture: [] }, // Empty furniture array initially
+            is_public: false
+          }
+        ])
+        .select()
+        .single();
+
+      if (designError) {
+        console.error('Error creating design:', designError);
+        throw new Error(`Failed to save design: ${designError.message}`);
+      }
+
+      console.log('Room design created:', designData);
+      console.log('=== Upload completed successfully ===');
+
+      // Pass the signed URL and design ID to parent
+      onUpload({
+        imageUrl: urlData.signedUrl,
+        imagePath: filePath,
+        designId: designData.id
+      });
+      
       handleClose();
+    } catch (error) {
+      console.error('Error uploading room:', error);
+      setError(error.message);
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -58,6 +188,7 @@ export default function ImageUploadModal({ isOpen, onClose, onUpload }) {
     setSelectedFile(null);
     setPreviewUrl(null);
     setIsDragging(false);
+    setError('');
     onClose();
   };
 
@@ -78,7 +209,22 @@ export default function ImageUploadModal({ isOpen, onClose, onUpload }) {
         </div>
 
         <div className="p-6">
-          {!previewUrl ? (
+          {error && (
+            <div className="mb-4 flex items-start gap-2 p-3 bg-error/10 border border-error/20 rounded-md">
+              <Icon name="ExclamationCircleIcon" size={18} variant="solid" className="text-error mt-0.5" />
+              <p className="font-body text-xs text-error">{error}</p>
+            </div>
+          )}
+
+          {uploading ? (
+            <div className="space-y-4 py-12 text-center">
+              <div className="w-16 h-16 mx-auto border-4 border-primary border-t-transparent rounded-full animate-spin" />
+              <div>
+                <p className="font-body font-medium text-foreground mb-1">Uploading your room photo...</p>
+                <p className="font-body text-sm text-muted-foreground">This may take a few moments</p>
+              </div>
+            </div>
+          ) : !previewUrl ? (
             <div
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
@@ -154,16 +300,20 @@ export default function ImageUploadModal({ isOpen, onClose, onUpload }) {
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border">
           <button
             onClick={handleClose}
-            className="px-4 py-2 rounded-md border border-border hover:bg-muted transition-fast font-body text-sm font-medium text-foreground"
+            disabled={uploading}
+            className="px-4 py-2 rounded-md border border-border hover:bg-muted transition-fast font-body text-sm font-medium text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Cancel
           </button>
           <button
             onClick={handleUpload}
-            disabled={!previewUrl}
-            className="px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-fast font-body text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={!previewUrl || uploading}
+            className="px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-fast font-body text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
-            Upload & Start Designing
+            {uploading && (
+              <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+            )}
+            {uploading ? 'Uploading...' : 'Upload & Start Designing'}
           </button>
         </div>
       </div>

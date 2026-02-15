@@ -7,28 +7,36 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
+  console.log('GCash payment function invoked')
+  
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
+    console.log('Creating Supabase client...')
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
+    console.log('Authenticating user...')
     const authHeader = req.headers.get('Authorization')!
     const token = authHeader.replace('Bearer ', '')
     const { data: { user } } = await supabaseClient.auth.getUser(token)
 
     if (!user) {
+      console.error('Unauthorized: No user found')
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
+    console.log('User authenticated:', user.id)
+    console.log('Parsing request body...')
     const { orderData, customerInfo } = await req.json()
+    console.log('Request data:', { orderData, customerInfo })
 
     if (!orderData || !orderData.items || orderData.items.length === 0) {
       return new Response(
@@ -47,6 +55,9 @@ serve(async (req) => {
     const orderNumber = `VF-${new Date().getFullYear()}-${Math.random().toString().substr(2, 8)}`
     const gcashReferenceId = `GC-${Date.now()}-${Math.random().toString().substr(2, 6)}`
 
+    console.log('Creating order with number:', orderNumber)
+    console.log('GCash reference ID:', gcashReferenceId)
+
     // In production, integrate with actual GCash API
     // For now, simulate GCash payment processing
     const gcashPaymentResult = {
@@ -56,6 +67,7 @@ serve(async (req) => {
       status: 'succeeded'
     }
 
+    console.log('Creating order in database...')
     const { data: order, error: orderError } = await supabaseClient
       .from('orders')
       .insert({
@@ -85,6 +97,8 @@ serve(async (req) => {
       )
     }
 
+    console.log('Order created successfully:', order.id)
+    console.log('Inserting order items...')
     const orderItems = orderData.items.map((item: any) => ({
       order_id: order.id,
       product_id: item.product_id || item.id || null,
@@ -99,7 +113,9 @@ serve(async (req) => {
     }))
 
     await supabaseClient.from('order_items').insert(orderItems)
+    console.log('Order items inserted')
 
+    console.log('Creating payment transaction...')
     await supabaseClient.from('payment_transactions').insert({
       order_id: order.id,
       gcash_reference_id: gcashReferenceId,
@@ -114,6 +130,9 @@ serve(async (req) => {
         processed_at: new Date().toISOString()
       }
     })
+
+    console.log('Payment transaction created')
+    console.log('GCash payment processed successfully')
 
     return new Response(
       JSON.stringify({
