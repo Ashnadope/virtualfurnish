@@ -51,8 +51,10 @@ export function AuthProvider({ children }) {
       if (error) {
         // This is not a critical error, but good to log
         console.warn('Could not fetch user profile:', error.message);
-        setUserProfile(null); // Ensure profile is cleared if fetch fails
-      } else if (data) {
+        return;
+      }
+      
+      if (data) {
         setUserProfile(data);
       }
     } catch (error) {
@@ -63,12 +65,18 @@ export function AuthProvider({ children }) {
   // Initialize auth state and listen for changes
   useEffect(() => {
     let isMounted = true;
+    let subscription;
 
     const initializeAuth = async () => {
       try {
         // Get current session
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
+        // Log but don't throw on session error - it's not fatal
+        if (sessionError) {
+          console.warn('Session check error:', sessionError.message);
+        }
+
         if (!isMounted) return;
 
         if (session?.user) {
@@ -94,40 +102,67 @@ export function AuthProvider({ children }) {
       }
     };
 
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!isMounted) return;
+    const setupAuthListener = async () => {
+      // Set up auth state listener AFTER initialization
+      const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
+        if (!isMounted) return;
 
-      // Skip initial session event to avoid race condition with getSession
-      if (event === 'INITIAL_SESSION') return;
+        // Skip initial session event - handled by getSession above
+        if (event === 'INITIAL_SESSION') return;
 
-      // Only set loading for actual auth changes, not token refreshes
-      const shouldSetLoading = ['SIGNED_IN', 'SIGNED_OUT', 'USER_UPDATED'].includes(event);
-      
-      if (shouldSetLoading) {
-        setLoading(true);
-      }
-      
-      const sessionUser = session?.user || null;
-      setUser(sessionUser);
+        try {
+          // Only set loading for actual auth changes, not token refreshes
+          const shouldSetLoading = ['SIGNED_IN', 'SIGNED_OUT', 'USER_UPDATED'].includes(event);
+          
+          if (shouldSetLoading && isMounted) {
+            setLoading(true);
+          }
+          
+          const sessionUser = session?.user || null;
+          
+          if (isMounted) {
+            setUser(sessionUser);
+          }
 
-      if (sessionUser) {
-        await loadUserProfile(sessionUser.id);
-      } else {
-        setUserProfile(null);
+          if (sessionUser) {
+            await loadUserProfile(sessionUser.id);
+          } else if (isMounted) {
+            setUserProfile(null);
+          }
+          
+          if (isMounted && shouldSetLoading) {
+            setLoading(false);
+          }
+        } catch (error) {
+          console.error('Error in auth state change handler:', error);
+          if (isMounted) {
+            setLoading(false);
+          }
+        }
+      });
+
+      subscription = data?.subscription;
+    };
+
+    // Initialize auth first
+    initializeAuth().then(() => {
+      if (isMounted) {
+        setupAuthListener();
       }
-      
-      if (isMounted && shouldSetLoading) {
-        setLoading(false);
-      }
+    }).catch((error) => {
+      console.error('Failed to initialize auth:', error);
     });
-
-    // Initialize auth
-    initializeAuth();
 
     return () => {
       isMounted = false;
-      subscription?.unsubscribe();
+      // Properly unsubscribe from listener
+      if (subscription?.unsubscribe) {
+        try {
+          subscription.unsubscribe();
+        } catch (error) {
+          console.error('Error unsubscribing from auth listener:', error);
+        }
+      }
     };
   }, []);
 

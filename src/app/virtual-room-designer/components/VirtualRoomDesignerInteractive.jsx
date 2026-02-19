@@ -115,13 +115,25 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
       setCurrentDesignId(data.id);
       setRoomImagePath(data.room_image_url);
       setUploadedImage(signedUrl);
-      setPlacedFurniture(data.design_data?.furniture || []);
+      
+      const loadedFurniture = data.design_data?.furniture || [];
+      setPlacedFurniture(loadedFurniture);
       setAiAnalysis(data.design_data?.aiAnalysis || null);
       setLastSaved(new Date(data.updated_at));
       setDesignName(data.name || '');
       setDesignDescription(data.description || '');
 
-      console.log('Design loaded successfully, furniture count:', data.design_data?.furniture?.length);
+      // Initialize history with the loaded state
+      setHistory([{ image: signedUrl, furniture: loadedFurniture }]);
+      setHistoryIndex(0);
+
+      // Show the analysis panel if AI analysis exists
+      if (data.design_data?.aiAnalysis) {
+        setShowAnalysisPanel(true);
+      }
+
+      console.log('Design loaded successfully, furniture count:', loadedFurniture.length);
+      console.log('Placed furniture:', loadedFurniture);
     } catch (error) {
       console.error('Error in loadDesignFromDatabase:', error);
       alert('Failed to load design');
@@ -398,9 +410,14 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
 
   const handleSaveWithDetails = async ({ name, description }) => {
     try {
+      // Save both design metadata (name/description) AND design data (furniture/aiAnalysis)
       const { error } = await roomDesignService.updateDesign(currentDesignId, {
         name,
-        description
+        description,
+        design_data: {
+          furniture: placedFurniture,
+          aiAnalysis: aiAnalysis
+        }
       });
 
       if (error) {
@@ -620,21 +637,29 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
 
                     <div>
                       <h4 className="font-body font-semibold text-foreground mb-2">
-                        Color Palette
+                        Dominant Colors in Room
                       </h4>
-                      <div className="flex gap-2">
-                        {aiAnalysis?.roomAnalysis?.dominantColors?.map((color, index) => (
-                          <div
-                            key={index}
-                            className="flex items-center gap-2 px-3 py-1 bg-background rounded-md text-sm"
-                          >
+                      <div className="flex flex-wrap gap-2">
+                        {aiAnalysis?.roomAnalysis?.dominantColors?.map((color, index) => {
+                          // Extract hex code from "ColorName (#HEXCODE)" format
+                          const hexMatch = color?.match(/#[0-9A-Fa-f]{6}/);
+                          const hexCode = hexMatch ? hexMatch[0] : '#cccccc'; // Fallback to gray if no hex found
+                          const colorName = color?.replace(/\s*\(.*?\)\s*/, '') || 'Unknown';
+                          
+                          return (
                             <div
-                              className="w-4 h-4 rounded-full border border-border"
-                              style={{ backgroundColor: color }}
-                            ></div>
-                            <span className="text-foreground">{color}</span>
-                          </div>
-                        ))}
+                              key={index}
+                              className="flex items-center gap-2 px-3 py-1 bg-background rounded-md text-sm border border-border"
+                            >
+                              <div
+                                className="w-4 h-4 rounded-full border border-border flex-shrink-0"
+                                style={{ backgroundColor: hexCode }}
+                                title={hexCode}
+                              ></div>
+                              <span className="text-foreground text-xs">{colorName}</span>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
 
@@ -708,6 +733,27 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
                             </li>
                           ))}
                         </ul>
+                      </div>
+                    )}
+
+                    {aiAnalysis?.colorPaletteSuggestions && (
+                      <div>
+                        <h4 className="font-body font-semibold text-foreground mb-3">
+                          Recommended Color Palette
+                        </h4>
+                        <div className="grid grid-cols-3 gap-2">
+                          {Object.entries(aiAnalysis.colorPaletteSuggestions).map(([name, hexCode]) => (
+                            <div key={name} className="text-center">
+                              <div
+                                className="w-full h-20 rounded-lg border-2 border-border mb-2"
+                                style={{ backgroundColor: hexCode }}
+                                title={hexCode}
+                              ></div>
+                              <p className="text-xs font-body font-medium text-foreground capitalize">{name}</p>
+                              <p className="text-xs text-muted-foreground">{hexCode}</p>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
