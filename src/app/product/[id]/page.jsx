@@ -46,7 +46,7 @@ export default async function ProductDetailPage({ params }) {
       <div className="min-h-screen bg-background">
         <Sidebar userRole="customer" />
         <Header userRole="customer" />
-        <main className="lg:ml-sidebar pt-16">
+        <main className="pt-16">
           <div className="p-6 max-w-7xl mx-auto">
             <div className="mb-6">
               <Breadcrumb />

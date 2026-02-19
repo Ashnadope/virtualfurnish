@@ -62,7 +62,7 @@ export default function Sidebar({ userRole = 'customer', isCollapsed = false }) 
           transition-all duration-300 ease-smooth
           ${isCollapsed ? 'w-16' : 'w-sidebar'}
           ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}
-          lg:translate-x-0
+          lg:hidden
         `}
       >
         <div className="flex flex-col h-full">

@@ -24,7 +24,7 @@ export default function AdminOrders() {
     <div className="min-h-screen bg-background">
       <Sidebar userRole="admin" />
       <Header userRole="admin" userName="Admin" />
-      <main className="lg:ml-sidebar pt-16">
+      <main className="pt-16">
         <div className="p-6 max-w-7xl mx-auto">
           <div className="mb-6">
             <Breadcrumb />

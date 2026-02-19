@@ -44,7 +44,7 @@ export default async function ProductManagementPage() {
       <Header userRole="admin" userName="Admin User" />
       <Sidebar userRole="admin" />
       
-      <main className="lg:ml-sidebar pt-16 min-h-screen bg-background">
+      <main className="pt-16 min-h-screen bg-background">
         <div className="p-6 max-w-[1600px] mx-auto">
           <div className="mb-6">
             <Breadcrumb />

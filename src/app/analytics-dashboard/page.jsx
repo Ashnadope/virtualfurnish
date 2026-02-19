@@ -206,7 +206,7 @@ export default function AnalyticsDashboard() {
       <Sidebar userRole="admin" />
       <Header userRole="admin" userName="Admin User" />
       
-      <main className="lg:ml-sidebar pt-16">
+      <main className="pt-16">
         <div className="p-6 lg:p-8">
           <div className="mb-6">
             <Breadcrumb />

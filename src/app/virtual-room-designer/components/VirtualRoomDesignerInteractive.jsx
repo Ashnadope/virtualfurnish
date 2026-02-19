@@ -514,7 +514,7 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
     <div className="min-h-screen bg-background">
       <Sidebar userRole="customer" />
       <Header userRole="customer" userName="John Doe" />
-      <main className="lg:ml-sidebar pt-16">
+      <main className="pt-16">
         <div className="p-6">
           <div className="mb-6">
             <Breadcrumb />
@@ -760,7 +760,7 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
                 isProcessing={isProcessingAI}
               />
 
-              <div className="flex gap-4">
+              <div className="flex gap-4 h-[calc(100vh-8rem)]">
                 <CanvasArea
                   ref={canvasRef}
                   uploadedImage={uploadedImage}

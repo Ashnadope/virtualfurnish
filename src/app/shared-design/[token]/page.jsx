@@ -68,7 +68,7 @@ export default function SharedDesignPage() {
         ) : (
           <PublicHeader />
         )}
-        <main className={user ? "lg:ml-sidebar pt-16" : "pt-16"}>
+        <main className="pt-16">
           <div className="flex flex-col items-center justify-center py-20">
             <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4" />
             <p className="font-body text-lg text-foreground">Loading shared design...</p>
@@ -89,7 +89,7 @@ export default function SharedDesignPage() {
         ) : (
           <PublicHeader />
         )}
-        <main className={user ? "lg:ml-sidebar pt-16" : "pt-16"}>
+        <main className="pt-16">
           <div className="p-6 max-w-5xl mx-auto">
             <div className="bg-surface rounded-lg shadow-card p-12 text-center">
               <Icon name="ExclamationCircleIcon" size={64} variant="outline" className="mx-auto text-error mb-4" />
@@ -124,7 +124,7 @@ export default function SharedDesignPage() {
       ) : (
         <PublicHeader />
       )}
-      <main className={user ? "lg:ml-sidebar pt-16" : "pt-16"}>
+      <main className="pt-16">
         <div className="p-6 max-w-7xl mx-auto">
           <div className="mb-6 flex items-center justify-between">
             <div>

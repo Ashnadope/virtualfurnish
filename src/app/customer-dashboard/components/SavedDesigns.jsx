@@ -196,13 +196,6 @@ export default function SavedDesigns({ limit = null, showAll = false }) {
                     <Icon name="PhotoIcon" size={48} variant="outline" className="text-muted-foreground" />
                   </div>
                 )}
-                <div className="absolute top-2 right-2 flex gap-1">
-                  {design.is_public && (
-                    <span className="px-2 py-1 bg-success text-white text-xs rounded-md font-body font-medium">
-                      Public
-                    </span>
-                  )}
-                </div>
               </div>
 
               <div className="p-4">
