@@ -22,6 +22,7 @@ export default function OrderHistoryPage() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [retryKey, setRetryKey] = useState(0);
   const [filters, setFilters] = useState({
     status: 'all',
     search: '',
@@ -68,79 +69,85 @@ export default function OrderHistoryPage() {
 
   // Load orders on mount
   useEffect(() => {
-    console.log('[OrderHistory] useEffect triggered', { authLoading, userId: user?.id, ordersCount: orders.length });
+    let isMounted = true;
+    console.log('[OrderHistory] useEffect triggered', { authLoading, userId: user?.id });
     
     if (authLoading) {
       console.log('[OrderHistory] Still auth loading, waiting...');
-      setLoading(true);
       return;
     }
 
     if (!user?.id) {
       console.log('[OrderHistory] No user, redirecting to login');
       router.push('/login');
-      setLoading(false);
       return;
     }
+
+    const loadOrders = async () => {
+      console.log('[OrderHistory] loadOrders called', { userId: user?.id });
+      
+      if (!isMounted) return;
+      
+      try {
+        setLoading(true);
+        setError('');
+        
+        console.log('[OrderHistory] Fetching orders from Supabase...');
+        const data = await orderService?.getUserOrders(user?.id);
+        console.log('[OrderHistory] Orders fetched:', data?.length);
+        
+        if (isMounted) {
+          setOrders(data || []);
+          
+          // Calculate stats from fetched orders
+          if (data && data.length > 0) {
+            const totalOrders = data.length;
+            const totalSpent = data.reduce((sum, order) => sum + parseFloat(order.totalAmount || 0), 0);
+            const pendingOrders = data.filter(o => o.status === 'Pending' || o.status === 'pending').length;
+            
+            setStats({
+              totalOrders,
+              totalSpent,
+              pendingOrders,
+              averageOrderValue: totalOrders > 0 ? totalSpent / totalOrders : 0
+            });
+          } else {
+            // If no orders, try to get stats from service
+            try {
+              const statsData = await orderService?.getOrderStats(user?.id);
+              if (isMounted) {
+                setStats(statsData);
+              }
+            } catch (err) {
+              console.error('Error loading stats:', err);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error loading orders:', err);
+        if (isMounted) {
+          setError(err?.message || 'Failed to load orders. Please try again.');
+          setOrders([]);
+        }
+      } finally {
+        console.log('[OrderHistory] loadOrders finished, setting loading=false');
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
 
     console.log('[OrderHistory] Loading orders and stats...');
     loadOrders();
-    loadStats();
-  }, [user?.id, authLoading, router]);
 
-  const loadOrders = async () => {
-    console.log('[OrderHistory] loadOrders called', { userId: user?.id });
-    
-    if (!user?.id) {
-      console.log('[OrderHistory] No user in loadOrders');
-      setLoading(false);
-      return;
-    }
-    
-    try {
-      setLoading(true);
-      setError('');
-      
-      console.log('[OrderHistory] Fetching orders from Supabase...');
-      // Fetch real orders from Supabase
-      if (user?.id) {
-        // Otherwise fetch from Supabase
-        const data = await orderService?.getUserOrders(user?.id, filters);
-        console.log('[OrderHistory] Orders fetched:', data?.length);
-        setOrders(data || []);
-      }
-    } catch (err) {
-      console.error('Error loading orders:', err);
-      setError(err?.message || 'Failed to load orders. Please try again.');
-    } finally {
-      console.log('[OrderHistory] loadOrders finished, setting loading=false');
-      setLoading(false);
-    }
-  };
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id, authLoading, router, retryKey]);
 
-  const loadStats = async () => {
-    if (!user?.id) return;
-    
-    try {
-      // Calculate stats from fetched orders
-      if (orders.length > 0) {
-        const totalOrders = orders.length;
-        const totalSpent = orders.reduce((sum, order) => sum + parseFloat(order.totalAmount || 0), 0);
-        const pendingOrders = orders.filter(o => o.status === 'pending').length;
-        
-        setStats({
-          totalOrders,
-          totalSpent,
-          pendingOrders,
-          averageOrderValue: totalOrders > 0 ? totalSpent / totalOrders : 0
-        });
-      } else {
-        const statsData = await orderService?.getOrderStats(user?.id);
-        setStats(statsData);
-      }
-    } catch (err) {
-      console.error('Error loading stats:', err);
-    }
+  const handleRetry = () => {
+    setError('');
+    setRetryKey(prev => prev + 1);
   };
 
   const handleFilterChange = (newFilters) => {
@@ -183,7 +190,7 @@ export default function OrderHistoryPage() {
   }
 
   if (error) {
-    return <ErrorMessage message={error} onRetry={loadOrders} />;
+    return <ErrorMessage message={error} onRetry={handleRetry} />;
   }
 
   return (

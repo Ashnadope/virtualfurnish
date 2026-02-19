@@ -101,7 +101,13 @@ export function AuthProvider({ children }) {
       // Skip initial session event to avoid race condition with getSession
       if (event === 'INITIAL_SESSION') return;
 
-      setLoading(true);
+      // Only set loading for actual auth changes, not token refreshes
+      const shouldSetLoading = ['SIGNED_IN', 'SIGNED_OUT', 'USER_UPDATED'].includes(event);
+      
+      if (shouldSetLoading) {
+        setLoading(true);
+      }
+      
       const sessionUser = session?.user || null;
       setUser(sessionUser);
 
@@ -111,7 +117,7 @@ export function AuthProvider({ children }) {
         setUserProfile(null);
       }
       
-      if (isMounted) {
+      if (isMounted && shouldSetLoading) {
         setLoading(false);
       }
     });
@@ -131,7 +137,7 @@ export function AuthProvider({ children }) {
   const value = {
     user: user ? {
       ...user,
-      name: userProfile?.first_name || user?.email?.split('@')?.[0] || 'User',
+      name: userProfile?.first_name || user?.email?.split('@')?.[0] || 'Customer',
       email: user?.email
     } : null,
     userProfile,

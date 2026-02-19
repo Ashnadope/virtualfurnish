@@ -18,13 +18,12 @@ export default function MyDesigns() {
         const supabase = createClient();
         const { data, error } = await supabase
           .from('user_profiles')
-          .select('full_name')
-          .eq('user_id', user.id)
+          .select('first_name')
+          .eq('id', user.id)
           .single();
 
-        if (data?.full_name) {
-          const firstName = data.full_name.split(' ')[0];
-          setUserName(firstName);
+        if (data?.first_name) {
+          setUserName(data.first_name);
         }
       } catch (error) {
         console.error('Error loading user data:', error);

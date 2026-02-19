@@ -15,15 +15,30 @@ export default function Header() {
   const [cartCount, setCartCount] = useState(0);
 
   useEffect(() => {
+    let isMounted = true;
+
+    const loadCartCount = async () => {
+      try {
+        const { count } = await cartService?.getCartCount();
+        if (isMounted) {
+          setCartCount(count);
+        }
+      } catch (error) {
+        console.error('Error getting cart count:', error);
+        if (isMounted) {
+          setCartCount(0);
+        }
+      }
+    };
+
     if (userRole === 'customer') {
       loadCartCount();
     }
-  }, [userRole, pathname]);
 
-  const loadCartCount = async () => {
-    const { count } = await cartService?.getCartCount();
-    setCartCount(count);
-  };
+    return () => {
+      isMounted = false;
+    };
+  }, [userRole, pathname]);
 
   const navigationLinks = [
     { 

@@ -14,19 +14,30 @@ export default function Sidebar({ userRole = 'customer', isCollapsed = false }) 
   const [orderCount, setOrderCount] = useState(0);
 
   useEffect(() => {
+    let isMounted = true;
+
+    const loadOrderCount = async () => {
+      try {
+        const orders = await orderService.getUserOrders(user.id);
+        if (isMounted) {
+          setOrderCount(orders?.length || 0);
+        }
+      } catch (error) {
+        console.error('Error loading order count:', error);
+        if (isMounted) {
+          setOrderCount(0);
+        }
+      }
+    };
+
     if (userRole === 'customer' && user?.id) {
       loadOrderCount();
     }
-  }, [userRole, user?.id]);
 
-  const loadOrderCount = async () => {
-    try {
-      const orders = await orderService.getUserOrders(user.id);
-      setOrderCount(orders?.length || 0);
-    } catch (error) {
-      console.error('Error loading order count:', error);
-    }
-  };
+    return () => {
+      isMounted = false;
+    };
+  }, [userRole, user?.id]);
 
   const customerNavigation = [
     { label: 'Dashboard', path: '/customer-dashboard', icon: 'HomeIcon' },
