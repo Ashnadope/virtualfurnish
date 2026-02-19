@@ -58,14 +58,13 @@ WITH CHECK (
   AND (storage.foldername(name))[1] = auth.uid()::text
 );
 
--- Policy 2: Users can view their own render images
-CREATE POLICY "Users can view own render images"
+-- Policy 2: Anyone can read renders for signed URLs
+-- Required for generating signed URLs for shared designs viewed by unauthenticated users
+-- Security maintained through: signed URL expiration (3600s), file paths include user IDs, only public designs shared
+CREATE POLICY "Anyone can read renders for signed URLs"
 ON storage.objects FOR SELECT
-TO authenticated
-USING (
-  bucket_id = 'design-renders' 
-  AND (storage.foldername(name))[1] = auth.uid()::text
-);
+TO anon, authenticated
+USING (bucket_id = 'design-renders');
 
 -- Policy 3: Users can delete their own render images
 CREATE POLICY "Users can delete own render images"

@@ -2,69 +2,115 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import PropTypes from 'prop-types';
 import Icon from '@/components/ui/AppIcon';
 import AppImage from '@/components/ui/AppImage';
 import { roomDesignService } from '@/services/roomDesign.service';
 import { useAuth } from '@/contexts/AuthContext';
+import ShareDesignModal from './ShareDesignModal';
 
-export default function SavedDesigns() {
+export default function SavedDesigns({ limit = null, showAll = false }) {
   const { user } = useAuth();
   const router = useRouter();
   const [designs, setDesigns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [shareModalData, setShareModalData] = useState({ url: '', name: '' });
 
   useEffect(() => {
-    if (user) {
-      loadDesigns();
-    }
-  }, [user]);
+    const loadDesigns = async () => {
+      try {
+        setLoading(true);
+        const { data, error } = await roomDesignService.getUserDesigns(user.id);
+        
+        if (error) {
+          setError(error);
+          setDesigns([]);
+          return;
+        }
 
-  const loadDesigns = async () => {
-    try {
-      setLoading(true);
-      const { data, error } = await roomDesignService.getUserDesigns(user.id);
-      
-      if (error) {
-        setError(error);
-        return;
+        // Get signed URLs for all designs (or limited number)
+        let designsToShow = data || [];
+        if (limit && !showAll) {
+          designsToShow = data.slice(0, limit);
+        }
+
+        const designsWithUrls = await Promise.all(
+          designsToShow.map(async (design) => {
+            // Use render_url if available, otherwise fall back to room_image_url
+            const imagePath = design.render_url || design.room_image_url;
+            
+            // Only get signed URL if we have an image path
+            let signedUrl = null;
+            if (imagePath) {
+              const result = await roomDesignService.getSignedUrl(imagePath);
+              signedUrl = result.signedUrl;
+            }
+            
+            return {
+              ...design,
+              imageUrl: signedUrl
+            };
+          })
+        );
+
+        setDesigns(designsWithUrls);
+      } catch (error) {
+        console.error('Error loading designs:', error);
+        setError('Failed to load designs');
+        setDesigns([]);
+      } finally {
+        setLoading(false);
       }
+    };
 
-      // Get signed URLs for all designs
-      const designsWithUrls = await Promise.all(
-        data.map(async (design) => {
-          const { signedUrl } = await roomDesignService.getSignedUrl(design.room_image_url);
-          return {
-            ...design,
-            imageUrl: signedUrl
-          };
-        })
-      );
-
-      setDesigns(designsWithUrls);
-    } catch (error) {
-      console.error('Error loading designs:', error);
-      setError('Failed to load designs');
-    } finally {
+    if (user?.id) {
+      loadDesigns();
+    } else {
       setLoading(false);
     }
-  };
+  }, [user?.id, limit, showAll]);
 
   const handleContinueDesign = (designId) => {
     router.push(`/virtual-room-designer?design=${designId}`);
   };
 
   const handleShareDesign = async (design) => {
-    if (!design.is_public) {
-      // Toggle to public if not already
-      await roomDesignService.togglePublicStatus(design.id, true);
-    }
+    try {
+      let shareToken = design.share_token;
 
-    const shareUrl = `${window.location.origin}/shared-design/${design.share_token}`;
-    
-    // Copy to clipboard
-    navigator.clipboard.writeText(shareUrl);
-    alert('Share link copied to clipboard!');
+      // If not public yet, make it public and get the share token
+      if (!design.is_public) {
+        const { data, error } = await roomDesignService.togglePublicStatus(design.id, true);
+        
+        if (error) {
+          alert('Failed to enable sharing: ' + error);
+          return;
+        }
+        
+        shareToken = data.share_token;
+        
+        // Update the design in the local state
+        setDesigns(designs.map(d => 
+          d.id === design.id ? { ...d, is_public: true, share_token: shareToken } : d
+        ));
+      }
+
+      if (!shareToken) {
+        alert('Failed to generate share link. Please try again.');
+        return;
+      }
+
+      const shareUrl = `${window.location.origin}/shared-design/${shareToken}`;
+      
+      // Open share modal
+      setShareModalData({ url: shareUrl, name: design.name });
+      setShareModalOpen(true);
+    } catch (error) {
+      console.error('Error sharing design:', error);
+      alert('Failed to generate share link');
+    }
   };
 
   const handleDeleteDesign = async (designId) => {
@@ -207,6 +253,19 @@ export default function SavedDesigns() {
           ))}
         </div>
       )}
+
+      {/* Share Design Modal */}
+      <ShareDesignModal
+        isOpen={shareModalOpen}
+        onClose={() => setShareModalOpen(false)}
+        shareUrl={shareModalData.url}
+        designName={shareModalData.name}
+      />
     </div>
   );
 }
+
+SavedDesigns.propTypes = {
+  limit: PropTypes.number,
+  showAll: PropTypes.bool
+};

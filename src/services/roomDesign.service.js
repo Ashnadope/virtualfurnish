@@ -178,10 +178,17 @@ export const roomDesignService = {
    */
   async getSignedUrl(imagePath, expiresIn = 3600) {
     try {
+      if (!imagePath) {
+        return { signedUrl: null, error: 'No image path provided' };
+      }
+
       const supabase = createClient();
       
+      // Determine bucket based on path (renders start with userid/render-, rooms with userid/room-)
+      const bucket = imagePath.includes('/render-') ? 'design-renders' : 'room-uploads';
+      
       const { data, error } = await supabase.storage
-        .from('room-uploads')
+        .from(bucket)
         .createSignedUrl(imagePath, expiresIn);
 
       if (error) throw error;

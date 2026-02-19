@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import PropTypes from 'prop-types';
 import Sidebar from '@/components/common/Sidebar';
@@ -12,12 +12,18 @@ import ActionToolbar from './ActionToolbar';
 import PropertiesPanel from './PropertiesPanel';
 import AISuggestionControls from './AISuggestionControls';
 import ImageUploadModal from './ImageUploadModal';
+import ContinueDesignModal from './ContinueDesignModal';
+import SaveDesignModal from './SaveDesignModal';
 import Icon from '@/components/ui/AppIcon';
 import { roomDesignService } from '@/services/roomDesign.service';
+import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function VirtualRoomDesignerInteractive({ initialFurnitureData }) {
+  const { user } = useAuth();
   const searchParams = useSearchParams();
   const designId = searchParams.get('design');
+  const canvasRef = useRef(null);
   
   const [uploadedImage, setUploadedImage] = useState(null);
   const [currentDesignId, setCurrentDesignId] = useState(null);
@@ -37,25 +43,55 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState(null);
   const [isLoadingDesign, setIsLoadingDesign] = useState(false);
+  const [isGeneratingRender, setIsGeneratingRender] = useState(false);
+  const [showContinueModal, setShowContinueModal] = useState(false);
+  const [latestDesign, setLatestDesign] = useState(null);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [designName, setDesignName] = useState('');
+  const [designDescription, setDesignDescription] = useState('');
 
-  // Load design from URL parameter if present
+  // Load design from URL parameter or check for latest design
   useEffect(() => {
-    if (designId) {
-      loadDesignFromDatabase(designId);
-    } else {
-      // Try to load from localStorage only if no URL parameter
-      const savedDesign = localStorage.getItem('virtualRoomDesign');
-      if (savedDesign) {
+    const initializeDesign = async () => {
+      if (designId) {
+        // If design ID in URL, load that specific design
+        loadDesignFromDatabase(designId);
+      } else if (user?.id) {
+        // Otherwise, check if user has any previous designs
         try {
-          const design = JSON.parse(savedDesign);
-          setUploadedImage(design?.image);
-          setPlacedFurniture(design?.furniture || []);
+          const { data, error } = await roomDesignService.getUserDesigns(user.id);
+          
+          if (!error && data && data.length > 0) {
+            // Get the latest design
+            const latest = data[0];
+            
+            // Get thumbnail (prefer render_url)
+            const imagePath = latest.render_url || latest.room_image_url;
+            let thumbnailUrl = null;
+            if (imagePath) {
+              const result = await roomDesignService.getSignedUrl(imagePath);
+              thumbnailUrl = result.signedUrl;
+            }
+            
+            // Set latest design and show modal
+            setLatestDesign({
+              id: latest.id,
+              name: latest.name,
+              thumbnail: thumbnailUrl,
+              updated_at: latest.updated_at,
+              furnitureCount: latest.design_data?.furniture?.length || 0,
+              fullData: latest
+            });
+            setShowContinueModal(true);
+          }
         } catch (error) {
-          console.error('Failed to load saved design:', error);
+          console.error('Error checking for latest design:', error);
         }
       }
-    }
-  }, [designId]);
+    };
+
+    initializeDesign();
+  }, [designId, user?.id]);
 
   const loadDesignFromDatabase = async (id) => {
     try {
@@ -82,6 +118,8 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
       setPlacedFurniture(data.design_data?.furniture || []);
       setAiAnalysis(data.design_data?.aiAnalysis || null);
       setLastSaved(new Date(data.updated_at));
+      setDesignName(data.name || '');
+      setDesignDescription(data.description || '');
 
       console.log('Design loaded successfully, furniture count:', data.design_data?.furniture?.length);
     } catch (error) {
@@ -92,16 +130,91 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
     }
   };
 
+  // Handle continuing latest design
+  const handleContinueDesign = async () => {
+    setShowContinueModal(false);
+    if (latestDesign?.fullData) {
+      await loadDesignFromDatabase(latestDesign.id);
+    }
+  };
+
+  // Handle starting new design
+  const handleStartNewDesign = () => {
+    setShowContinueModal(false);
+    setLatestDesign(null);
+    setShowUploadModal(true);
+  };
+
   // Auto-save design when furniture changes
   useEffect(() => {
     if (currentDesignId && placedFurniture.length >= 0) {
       const autoSaveTimer = setTimeout(() => {
         saveDesignToDatabase();
+        // Also generate render after saving
+        if (placedFurniture.length > 0) {
+          generateAndUploadRender();
+        }
       }, 2000); // Auto-save after 2 seconds of no changes
 
       return () => clearTimeout(autoSaveTimer);
     }
   }, [placedFurniture, currentDesignId]);
+
+  const generateAndUploadRender = async () => {
+    if (!canvasRef.current || !currentDesignId || !user) {
+      console.log('Cannot generate render: missing requirements');
+      return;
+    }
+
+    try {
+      setIsGeneratingRender(true);
+      console.log('Generating design render...');
+
+      // Capture the canvas
+      const blob = await canvasRef.current.captureCanvas();
+      console.log('Canvas captured as blob:', blob.size, 'bytes');
+
+      const supabase = createClient();
+      
+      // Create unique filename
+      const timestamp = Date.now();
+      const fileName = `render-${timestamp}.png`;
+      const filePath = `${user.id}/${fileName}`;
+
+      console.log('Uploading render to design-renders bucket...', filePath);
+
+      // Upload to design-renders bucket
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('design-renders')
+        .upload(filePath, blob, {
+          cacheControl: '3600',
+          upsert: true, // Allow overwriting
+          contentType: 'image/png'
+        });
+
+      if (uploadError) {
+        console.error('Error uploading render:', uploadError);
+        return;
+      }
+
+      console.log('Render uploaded successfully:', uploadData);
+
+      // Update room_designs with render URL
+      const { error: updateError } = await roomDesignService.updateDesign(currentDesignId, {
+        render_url: filePath
+      });
+
+      if (updateError) {
+        console.error('Error updating design with render URL:', updateError);
+      } else {
+        console.log('Design updated with render URL');
+      }
+    } catch (error) {
+      console.error('Error generating render:', error);
+    } finally {
+      setIsGeneratingRender(false);
+    }
+  };
 
   const saveDesignToDatabase = async () => {
     if (!currentDesignId) {
@@ -151,6 +264,8 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
     setRoomImagePath(uploadData.imagePath);
     setCurrentDesignId(uploadData.designId);
     setPlacedFurniture([]);
+    setDesignName(`Room Design ${new Date().toLocaleDateString()}`);
+    setDesignDescription('');
     saveToHistory({ image: uploadData.imageUrl, furniture: [] });
     
     // Automatically trigger AI analysis after image upload
@@ -274,17 +389,34 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
   };
 
   const handleSave = () => {
+    if (!currentDesignId) {
+      alert('Please upload a room image first to create a design.');
+      return;
+    }
+    setShowSaveModal(true);
+  };
+
+  const handleSaveWithDetails = async ({ name, description }) => {
     try {
-      const design = {
-        image: uploadedImage,
-        furniture: placedFurniture,
-        savedAt: new Date()?.toISOString()
-      };
-      localStorage.setItem('virtualRoomDesign', JSON.stringify(design));
+      const { error } = await roomDesignService.updateDesign(currentDesignId, {
+        name,
+        description
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      setDesignName(name);
+      setDesignDescription(description);
+      setLastSaved(new Date());
+      
+      // Show success message (could be replaced with a toast notification)
       alert('Design saved successfully!');
     } catch (error) {
       console.error('Failed to save design:', error);
       alert('Failed to save design. Please try again.');
+      throw error;
     }
   };
 
@@ -630,6 +762,7 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
 
               <div className="flex gap-4">
                 <CanvasArea
+                  ref={canvasRef}
                   uploadedImage={uploadedImage}
                   placedFurniture={placedFurniture}
                   selectedFurnitureId={selectedFurnitureId}
@@ -683,6 +816,19 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
         isOpen={showUploadModal}
         onClose={() => setShowUploadModal(false)}
         onUpload={handleImageUpload}
+      />
+      <ContinueDesignModal
+        isOpen={showContinueModal}
+        onContinue={handleContinueDesign}
+        onStartNew={handleStartNewDesign}
+        design={latestDesign}
+      />
+      <SaveDesignModal
+        isOpen={showSaveModal}
+        onClose={() => setShowSaveModal(false)}
+        onSave={handleSaveWithDetails}
+        currentName={designName}
+        currentDescription={designDescription}
       />
     </div>
   );

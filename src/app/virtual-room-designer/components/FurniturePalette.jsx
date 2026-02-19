@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import Icon from '@/components/ui/AppIcon';
 import AppImage from '@/components/ui/AppImage';
@@ -10,7 +10,15 @@ export default function FurniturePalette({ furnitureItems, onAddFurniture }) {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [isPaletteOpen, setIsPaletteOpen] = useState(true);
 
-  const categories = ['All', 'Sofas', 'Tables', 'Chairs', 'Storage', 'Beds', 'Decor'];
+  // Dynamically extract unique categories from furniture items
+  const categories = useMemo(() => {
+    if (!furnitureItems || furnitureItems.length === 0) {
+      return ['All'];
+    }
+    
+    const uniqueCategories = [...new Set(furnitureItems.map(item => item?.category).filter(Boolean))];
+    return ['All', ...uniqueCategories.sort()];
+  }, [furnitureItems]);
 
   const filteredFurniture = furnitureItems?.filter(item => {
     const matchesSearch = item?.name?.toLowerCase()?.includes(searchQuery?.toLowerCase());

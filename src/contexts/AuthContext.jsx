@@ -60,13 +60,17 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Initialize auth state on mount by checking current session
+  // Initialize auth state and listen for changes
   useEffect(() => {
+    let isMounted = true;
+
     const initializeAuth = async () => {
       try {
-        // Get current session immediately
+        // Get current session
         const { data: { session } } = await supabase.auth.getSession();
         
+        if (!isMounted) return;
+
         if (session?.user) {
           setUser(session.user);
           await loadUserProfile(session.user.id);
@@ -74,22 +78,29 @@ export function AuthProvider({ children }) {
           setUser(null);
           setUserProfile(null);
         }
+        
+        if (isMounted) {
+          setLoading(false);
+          setIsHydrated(true);
+        }
       } catch (error) {
         console.error('Auth initialization error:', error);
-        setUser(null);
-        setUserProfile(null);
-      } finally {
-        setLoading(false);
-        setIsHydrated(true);
+        if (isMounted) {
+          setUser(null);
+          setUserProfile(null);
+          setLoading(false);
+          setIsHydrated(true);
+        }
       }
     };
 
-    initializeAuth();
-  }, []);
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!isMounted) return;
 
-  // Listen for Supabase auth state changes
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      // Skip initial session event to avoid race condition with getSession
+      if (event === 'INITIAL_SESSION') return;
+
       setLoading(true);
       const sessionUser = session?.user || null;
       setUser(sessionUser);
@@ -99,11 +110,20 @@ export function AuthProvider({ children }) {
       } else {
         setUserProfile(null);
       }
-      setLoading(false);
+      
+      if (isMounted) {
+        setLoading(false);
+      }
     });
 
-    return () => subscription?.unsubscribe();
-  }, [supabase]);
+    // Initialize auth
+    initializeAuth();
+
+    return () => {
+      isMounted = false;
+      subscription?.unsubscribe();
+    };
+  }, []);
 
   // Derive userRole from user and userProfile
   const userRole = user ? getUserRole(user, userProfile) : null;

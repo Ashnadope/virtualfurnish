@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
 import PropTypes from 'prop-types';
+import html2canvas from 'html2canvas';
 import Icon from '@/components/ui/AppIcon';
 import AppImage from '@/components/ui/AppImage';
 
-export default function CanvasArea({ 
+const CanvasArea = forwardRef(function CanvasArea({ 
   uploadedImage, 
   placedFurniture, 
   selectedFurnitureId,
@@ -17,7 +18,7 @@ export default function CanvasArea({
   onAddFurniture,
   showAISuggestions,
   aiSuggestionType
-}) {
+}, ref) {
   const [zoom, setZoom] = useState(100);
   const [isPanning, setIsPanning] = useState(false);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
@@ -30,6 +31,49 @@ export default function CanvasArea({
   const [isDragOver, setIsDragOver] = useState(false);
   const canvasRef = useRef(null);
   const imageContainerRef = useRef(null);
+
+  // Expose capture function to parent via ref
+  useImperativeHandle(ref, () => ({
+    captureCanvas: async () => {
+      if (!imageContainerRef.current) {
+        throw new Error('Canvas not ready');
+      }
+
+      try {
+        console.log('Capturing canvas...');
+        
+        // Capture the image container with furniture
+        const canvas = await html2canvas(imageContainerRef.current, {
+          backgroundColor: null,
+          scale: 2, // Higher quality
+          useCORS: true,
+          allowTaint: true,
+          logging: false
+        });
+
+        console.log('Canvas captured, converting to blob...');
+        
+        // Convert canvas to blob
+        return new Promise((resolve, reject) => {
+          canvas.toBlob(
+            (blob) => {
+              if (blob) {
+                console.log('Blob created:', blob.size, 'bytes');
+                resolve(blob);
+              } else {
+                reject(new Error('Failed to create blob'));
+              }
+            },
+            'image/png',
+            0.95
+          );
+        });
+      } catch (error) {
+        console.error('Error capturing canvas:', error);
+        throw error;
+      }
+    }
+  }));
 
   const handleZoomIn = () => {
     setZoom(prev => Math.min(prev + 10, 200));
@@ -544,7 +588,7 @@ export default function CanvasArea({
       )}
     </div>
   );
-}
+});
 
 CanvasArea.propTypes = {
   uploadedImage: PropTypes?.string,
@@ -571,3 +615,5 @@ CanvasArea.propTypes = {
   showAISuggestions: PropTypes?.bool?.isRequired,
   aiSuggestionType: PropTypes?.string
 };
+
+export default CanvasArea;

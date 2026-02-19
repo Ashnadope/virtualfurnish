@@ -5,12 +5,18 @@ import PropTypes from 'prop-types';
 export default function RecentDesignCard({ design, onContinue, onShare }) {
   return (
     <div className="bg-surface rounded-lg shadow-card border border-border overflow-hidden group hover:shadow-elevated transition-smooth">
-      <div className="relative h-48 overflow-hidden">
-        <AppImage
-          src={design?.thumbnail}
-          alt={design?.alt}
-          className="w-full h-full object-cover group-hover:scale-105 transition-smooth"
-        />
+      <div className="relative h-48 overflow-hidden bg-muted">
+        {design?.thumbnail ? (
+          <AppImage
+            src={design.thumbnail}
+            alt={design?.alt}
+            className="w-full h-full object-cover group-hover:scale-105 transition-smooth"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <Icon name="PhotoIcon" size={48} variant="outline" className="text-muted-foreground" />
+          </div>
+        )}
         <div className="absolute top-2 right-2 bg-surface/90 backdrop-blur-sm px-2 py-1 rounded-md">
           <p className="font-body text-xs text-foreground">{design?.date}</p>
         </div>
@@ -45,13 +51,15 @@ export default function RecentDesignCard({ design, onContinue, onShare }) {
 
 RecentDesignCard.propTypes = {
   design: PropTypes?.shape({
-    id: PropTypes?.number?.isRequired,
+    id: PropTypes?.oneOfType([PropTypes?.number, PropTypes?.string])?.isRequired,
     name: PropTypes?.string?.isRequired,
-    thumbnail: PropTypes?.string?.isRequired,
+    thumbnail: PropTypes?.string, // Can be null if render not generated yet
     alt: PropTypes?.string?.isRequired,
     date: PropTypes?.string?.isRequired,
     itemCount: PropTypes?.number?.isRequired,
     roomType: PropTypes?.string?.isRequired,
+    is_public: PropTypes?.bool,
+    share_token: PropTypes?.string,
   })?.isRequired,
   onContinue: PropTypes?.func?.isRequired,
   onShare: PropTypes?.func?.isRequired,

@@ -5,54 +5,147 @@ import Sidebar from '@/components/common/Sidebar';
 import Header from '@/components/common/Header';
 import Breadcrumb from '@/components/common/Breadcrumb';
 import CustomerDashboardInteractive from './components/CustomerDashboardInteractive';
-import SavedDesigns from './components/SavedDesigns';
 import { useAuth } from '@/contexts/AuthContext';
 import { orderService } from '@/services/order.service';
+import { roomDesignService } from '@/services/roomDesign.service';
 import { createClient } from '@/lib/supabase/client';
 
 export default function CustomerDashboard() {
   const { user } = useAuth();
   const [orderCount, setOrderCount] = useState(0);
   const [userName, setUserName] = useState('Customer');
+  const [recentDesigns, setRecentDesigns] = useState([]);
 
   useEffect(() => {
-    if (user?.id) {
-      loadUserData();
-      loadOrderCount();
-    }
-  }, [user?.id]);
+    let isMounted = true;
 
-  const loadUserData = async () => {
-    try {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('full_name')
-        .eq('user_id', user.id)
-        .single();
+    const loadUserData = async () => {
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from('user_profiles')
+          .select('full_name')
+          .eq('user_id', user.id)
+          .single();
 
-      if (data?.full_name) {
-        // Extract first name (everything before the first space)
-        const firstName = data.full_name.split(' ')[0];
-        setUserName(firstName);
+        if (error) {
+          console.error('Error loading user data:', error);
+          setUserName('Customer');
+          return;
+        }
+
+        if (data?.full_name) {
+          // Extract first name (everything before the first space)
+          const firstName = data.full_name.split(' ')[0];
+          setUserName(firstName);
+        } else {
+          setUserName('Customer');
+        }
+      } catch (error) {
+        console.error('Error loading user data:', error);
+        setUserName('Customer');
       }
-    } catch (error) {
-      console.error('Error loading user data:', error);
-    }
-  };
+    };
 
-  const loadOrderCount = async () => {
-    try {
-      const orders = await orderService.getUserOrders(user.id);
-      setOrderCount(orders?.length || 0);
-    } catch (error) {
-      console.error('Error loading order count:', error);
-    }
-  };
+    const loadOrderCount = async () => {
+      try {
+        const orders = await orderService.getUserOrders(user.id);
+        setOrderCount(orders?.length || 0);
+      } catch (error) {
+        console.error('Error loading order count:', error);
+        setOrderCount(0);
+      }
+    };
+
+    const loadRecentDesigns = async () => {
+      try {
+        const { data, error } = await roomDesignService.getUserDesigns(user.id);
+        
+        if (error) {
+          console.error('Error loading designs:', error);
+          setRecentDesigns([]);
+          return;
+        }
+
+        if (!data || data.length === 0) {
+          setRecentDesigns([]);
+          return;
+        }
+
+        // Get latest 3 designs with signed URLs
+        const latest3 = data.slice(0, 3);
+        const designsWithUrls = await Promise.all(
+          latest3.map(async (design) => {
+            try {
+              // Use render_url if available, otherwise fall back to room_image_url
+              const imagePath = design.render_url || design.room_image_url;
+              
+              // Only get signed URL if we have an image path
+              let signedUrl = null;
+              if (imagePath) {
+                const result = await roomDesignService.getSignedUrl(imagePath);
+                signedUrl = result.signedUrl;
+              }
+              
+              return {
+                id: design.id,
+                name: design.name,
+                thumbnail: signedUrl,
+                alt: design.description || design.name,
+                date: new Date(design.updated_at).toLocaleDateString(),
+                itemCount: design.design_data?.furniture?.length || 0,
+                roomType: design.name,
+                is_public: design.is_public,
+                share_token: design.share_token
+              };
+            } catch (err) {
+              console.error('Error processing design:', design.id, err);
+              // Return design with null thumbnail on error
+              return {
+                id: design.id,
+                name: design.name,
+                thumbnail: null,
+                alt: design.description || design.name,
+                date: new Date(design.updated_at).toLocaleDateString(),
+                itemCount: design.design_data?.furniture?.length || 0,
+                roomType: design.name,
+                is_public: design.is_public,
+                share_token: design.share_token
+              };
+            }
+          })
+        );
+        
+        setRecentDesigns(designsWithUrls);
+      } catch (error) {
+        console.error('Error loading recent designs:', error);
+        setRecentDesigns([]);
+      }
+    };
+
+    const loadData = async () => {
+      if (user?.id && isMounted) {
+        try {
+          // Load data sequentially to avoid auth lock conflicts
+          await loadUserData();
+          if (isMounted) await loadOrderCount();
+          if (isMounted) await loadRecentDesigns();
+        } catch (error) {
+          console.error('Error loading dashboard data:', error);
+        }
+      }
+    };
+
+    loadData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id]);
 
   const dashboardData = {
     userName: userName,
-    savedDesigns: 5,
+    savedDesigns: recentDesigns.length,
     wishlistItems: 12,
     orderCount: orderCount,
     actionTiles: [
@@ -81,34 +174,7 @@ export default function CustomerDashboard() {
       bgColor: "bg-gradient-to-br from-accent to-accent/80"
     }],
 
-    recentDesigns: [
-    {
-      id: 1,
-      name: "Living Room Makeover",
-      thumbnail: "https://img.rocket.new/generatedImages/rocket_gen_img_14eb753f8-1764845698055.png",
-      alt: "Modern living room with gray sectional sofa, wooden coffee table, and white walls with large windows",
-      date: "05/12/2025",
-      itemCount: 8,
-      roomType: "Living Room"
-    },
-    {
-      id: 2,
-      name: "Bedroom Refresh",
-      thumbnail: "https://images.unsplash.com/photo-1560184897-f1b9fd4e5d25",
-      alt: "Cozy bedroom with queen-size bed, white bedding, wooden nightstands, and warm ambient lighting",
-      date: "03/12/2025",
-      itemCount: 6,
-      roomType: "Bedroom"
-    },
-    {
-      id: 3,
-      name: "Dining Area Setup",
-      thumbnail: "https://images.unsplash.com/photo-1722764375892-32aa3e1811da",
-      alt: "Elegant dining room with wooden table, six upholstered chairs, and pendant lighting fixture",
-      date: "01/12/2025",
-      itemCount: 5,
-      roomType: "Dining Room"
-    }],
+    recentDesigns: recentDesigns,
 
     recommendations: [
     {
@@ -195,11 +261,6 @@ export default function CustomerDashboard() {
           </div>
           
           <CustomerDashboardInteractive initialData={dashboardData} />
-          
-          {/* Saved Room Designs Section */}
-          <div className="mt-8">
-            <SavedDesigns />
-          </div>
         </div>
       </main>
     </div>);

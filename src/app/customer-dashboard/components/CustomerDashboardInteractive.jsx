@@ -1,26 +1,64 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import WelcomeSection from './WelcomeSection';
 import ActionTile from './ActionTile';
 import RecentDesignCard from './RecentDesignCard';
 import RecommendationCard from './RecommendationCard';
 import OrderStatusCard from './OrderStatusCard';
+import ShareDesignModal from './ShareDesignModal';
+import { roomDesignService } from '@/services/roomDesign.service';
 import PropTypes from 'prop-types';
 
 export default function CustomerDashboardInteractive({ initialData }) {
   const router = useRouter();
-  const [showShareModal, setShowShareModal] = useState(false);
-  const [selectedDesignId, setSelectedDesignId] = useState(null);
+  const [designs, setDesigns] = useState(initialData?.recentDesigns || []);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [shareModalData, setShareModalData] = useState({ url: '', name: '' });
 
   const handleContinueDesign = (designId) => {
     router?.push(`/virtual-room-designer?design=${designId}`);
   };
 
-  const handleShareDesign = (designId) => {
-    setSelectedDesignId(designId);
-    setShowShareModal(true);
+  const handleShareDesign = async (designId) => {
+    try {
+      const design = designs.find(d => d.id === designId);
+      if (!design) return;
+
+      let shareToken = design.share_token;
+
+      // If not public yet, make it public and get the share token
+      if (!design.is_public) {
+        const { data, error } = await roomDesignService.togglePublicStatus(design.id, true);
+        
+        if (error) {
+          alert('Failed to enable sharing: ' + error);
+          return;
+        }
+        
+        shareToken = data.share_token;
+        
+        // Update the design in the local state
+        setDesigns(designs.map(d => 
+          d.id === design.id ? { ...d, is_public: true, share_token: shareToken } : d
+        ));
+      }
+
+      if (!shareToken) {
+        alert('Failed to generate share link. Please try again.');
+        return;
+      }
+
+      const shareUrl = `${window.location.origin}/shared-design/${shareToken}`;
+      
+      // Open share modal
+      setShareModalData({ url: shareUrl, name: design.name });
+      setShareModalOpen(true);
+    } catch (error) {
+      console.error('Error sharing design:', error);
+      alert('Failed to generate share link');
+    }
   };
 
   const handleAddToCart = (productId) => {
@@ -31,10 +69,12 @@ export default function CustomerDashboardInteractive({ initialData }) {
     console.log(`Viewing product ${productId} details`);
   };
 
-  const closeShareModal = () => {
-    setShowShareModal(false);
-    setSelectedDesignId(null);
-  };
+  // Update designs when initialData changes
+  useEffect(() => {
+    if (initialData?.recentDesigns) {
+      setDesigns(initialData.recentDesigns);
+    }
+  }, [initialData]);
 
   return (
     <div className="space-y-6">
@@ -55,7 +95,7 @@ export default function CustomerDashboardInteractive({ initialData }) {
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-heading text-xl font-bold text-foreground">Recent Designs</h2>
           <button
-            onClick={() => router?.push('/virtual-room-designer')}
+            onClick={() => router?.push('/my-designs')}
             className="font-body text-sm text-primary hover:text-primary/80 transition-fast flex items-center gap-1"
           >
             View All
@@ -64,16 +104,32 @@ export default function CustomerDashboardInteractive({ initialData }) {
             </svg>
           </button>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {initialData?.recentDesigns?.map((design) => (
-            <RecentDesignCard
-              key={design?.id}
-              design={design}
-              onContinue={handleContinueDesign}
-              onShare={handleShareDesign}
-            />
-          ))}
-        </div>
+        {designs?.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {designs?.map((design) => (
+              <RecentDesignCard
+                key={design?.id}
+                design={design}
+                onContinue={handleContinueDesign}
+                onShare={handleShareDesign}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="bg-surface rounded-lg border border-border p-12 text-center">
+            <svg className="mx-auto h-16 w-16 text-muted-foreground mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <h3 className="font-heading font-semibold text-lg text-foreground mb-2">No designs yet</h3>
+            <p className="font-body text-muted-foreground mb-4">Start creating your first room design with AI assistance</p>
+            <button
+              onClick={() => router?.push('/virtual-room-designer')}
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-fast font-body font-medium"
+            >
+              Create First Design
+            </button>
+          </div>
+        )}
       </div>
       <div>
         <div className="flex items-center justify-between mb-4">
@@ -103,40 +159,14 @@ export default function CustomerDashboardInteractive({ initialData }) {
           ))}
         </div>
       </div>
-      {showShareModal && (
-        <>
-          <div
-            className="fixed inset-0 bg-foreground/50 z-dropdown"
-            onClick={closeShareModal}
-            aria-hidden="true"
-          />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-surface rounded-lg shadow-elevated z-overlay w-full max-w-md p-6 animate-slide-in">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-heading text-lg font-bold text-foreground">Share Design</h3>
-              <button
-                onClick={closeShareModal}
-                className="text-muted-foreground hover:text-foreground transition-fast"
-                aria-label="Close modal"
-              >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M6 18L18 6M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </button>
-            </div>
-            <p className="font-body text-muted-foreground mb-4">
-              Share your design #{selectedDesignId} with friends and family
-            </p>
-            <div className="flex gap-3">
-              <button className="flex-1 bg-primary text-primary-foreground px-4 py-2 rounded-md font-body text-sm font-medium hover:bg-primary/90 transition-fast">
-                Copy Link
-              </button>
-              <button className="flex-1 bg-muted text-foreground px-4 py-2 rounded-md font-body text-sm font-medium hover:bg-muted/80 transition-fast">
-                Share via Email
-              </button>
-            </div>
-          </div>
-        </>
-      )}
+
+      {/* Share Design Modal */}
+      <ShareDesignModal
+        isOpen={shareModalOpen}
+        onClose={() => setShareModalOpen(false)}
+        shareUrl={shareModalData.url}
+        designName={shareModalData.name}
+      />
     </div>
   );
 }

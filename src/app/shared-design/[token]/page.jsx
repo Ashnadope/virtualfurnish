@@ -4,19 +4,22 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Sidebar from '@/components/common/Sidebar';
 import Header from '@/components/common/Header';
+import PublicHeader from '@/components/common/PublicHeader';
 import Icon from '@/components/ui/AppIcon';
 import AppImage from '@/components/ui/AppImage';
 import { roomDesignService } from '@/services/roomDesign.service';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function SharedDesignPage() {
   const params = useParams();
   const router = useRouter();
   const token = params.token;
+  const { user, userRole } = useAuth();
   
   const [design, setDesign] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [roomImageUrl, setRoomImageUrl] = useState('');
+  const [previewImageUrl, setPreviewImageUrl] = useState('');
 
   useEffect(() => {
     if (token) {
@@ -34,11 +37,18 @@ export default function SharedDesignPage() {
         return;
       }
 
-      // Get signed URL for the room image
-      const { signedUrl } = await roomDesignService.getSignedUrl(data.room_image_url);
+      // Use render_url if available, otherwise fall back to room_image_url
+      const imagePath = data.render_url || data.room_image_url;
+      
+      // Only get signed URL if we have an image path
+      let signedUrl = null;
+      if (imagePath) {
+        const result = await roomDesignService.getSignedUrl(imagePath);
+        signedUrl = result.signedUrl;
+      }
 
       setDesign(data);
-      setRoomImageUrl(signedUrl);
+      setPreviewImageUrl(signedUrl);
     } catch (error) {
       console.error('Error loading shared design:', error);
       setError('Failed to load design');
@@ -50,9 +60,15 @@ export default function SharedDesignPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <Sidebar userRole="customer" />
-        <Header userRole="customer" />
-        <main className="lg:ml-sidebar pt-16">
+        {user ? (
+          <>
+            <Sidebar userRole={userRole || 'customer'} />
+            <Header userRole={userRole || 'customer'} />
+          </>
+        ) : (
+          <PublicHeader />
+        )}
+        <main className={user ? "lg:ml-sidebar pt-16" : "pt-16"}>
           <div className="flex flex-col items-center justify-center py-20">
             <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4" />
             <p className="font-body text-lg text-foreground">Loading shared design...</p>
@@ -65,9 +81,15 @@ export default function SharedDesignPage() {
   if (error || !design) {
     return (
       <div className="min-h-screen bg-background">
-        <Sidebar userRole="customer" />
-        <Header userRole="customer" />
-        <main className="lg:ml-sidebar pt-16">
+        {user ? (
+          <>
+            <Sidebar userRole={userRole || 'customer'} />
+            <Header userRole={userRole || 'customer'} />
+          </>
+        ) : (
+          <PublicHeader />
+        )}
+        <main className={user ? "lg:ml-sidebar pt-16" : "pt-16"}>
           <div className="p-6 max-w-5xl mx-auto">
             <div className="bg-surface rounded-lg shadow-card p-12 text-center">
               <Icon name="ExclamationCircleIcon" size={64} variant="outline" className="mx-auto text-error mb-4" />
@@ -94,9 +116,15 @@ export default function SharedDesignPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Sidebar userRole="customer" />
-      <Header userRole="customer" />
-      <main className="lg:ml-sidebar pt-16">
+      {user ? (
+        <>
+          <Sidebar userRole={userRole || 'customer'} />
+          <Header userRole={userRole || 'customer'} />
+        </>
+      ) : (
+        <PublicHeader />
+      )}
+      <main className={user ? "lg:ml-sidebar pt-16" : "pt-16"}>
         <div className="p-6 max-w-7xl mx-auto">
           <div className="mb-6 flex items-center justify-between">
             <div>
@@ -125,14 +153,41 @@ export default function SharedDesignPage() {
             </div>
           </div>
 
+          {/* Call to Action Banner for Non-Authenticated Users */}
+          {!user && (
+            <div className="mb-6 bg-gradient-to-r from-primary to-primary/80 rounded-lg shadow-lg p-6 text-white">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <Icon name="SparklesIcon" size={24} variant="solid" className="text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-heading font-semibold text-lg mb-1">
+                      Create Your Own Room Designs
+                    </h3>
+                    <p className="font-body text-sm text-white/90">
+                      Design with AI-powered suggestions, save your work, and shop directly from your designs
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => router.push('/signup')}
+                  className="px-6 py-3 bg-white text-primary rounded-lg font-body font-medium hover:bg-white/90 transition-colors whitespace-nowrap"
+                >
+                  Get Started Free
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="grid lg:grid-cols-3 gap-6">
-            {/* Room Image */}
+            {/* Room Design Preview */}
             <div className="lg:col-span-2">
               <div className="bg-surface rounded-lg shadow-card overflow-hidden border border-border">
                 <div className="aspect-video bg-background">
-                  {roomImageUrl ? (
+                  {previewImageUrl ? (
                     <AppImage
-                      src={roomImageUrl}
+                      src={previewImageUrl}
                       alt={design.name || 'Room design'}
                       className="w-full h-full object-contain"
                     />
@@ -193,27 +248,39 @@ export default function SharedDesignPage() {
                     No furniture items in this design
                   </p>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-3 max-h-[600px] overflow-y-auto">
                     {design.design_data.furniture.map((item, index) => (
-                      <div key={item.id || index} className="flex items-center gap-3 p-3 bg-muted rounded-lg border border-border">
-                        {item.image ? (
-                          <AppImage
-                            src={item.image}
-                            alt={item.name || 'Furniture item'}
-                            className="w-12 h-12 object-cover rounded"
-                          />
-                        ) : (
-                          <div className="w-12 h-12 bg-background rounded flex items-center justify-center">
-                            <Icon name="CubeIcon" size={24} variant="outline" className="text-muted-foreground" />
-                          </div>
-                        )}
+                      <div key={item.id || index} className="flex items-start gap-3 p-3 bg-muted rounded-lg border border-border hover:border-primary/50 transition-fast">
+                        <div className="flex-shrink-0">
+                          {item.image ? (
+                            <AppImage
+                              src={item.image}
+                              alt={item.name || 'Furniture item'}
+                              className="w-16 h-16 object-cover rounded"
+                            />
+                          ) : (
+                            <div className="w-16 h-16 bg-background rounded flex items-center justify-center">
+                              <Icon name="CubeIcon" size={24} variant="outline" className="text-muted-foreground" />
+                            </div>
+                          )}
+                        </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-body font-medium text-sm text-foreground truncate">
+                          <p className="font-body font-semibold text-sm text-foreground mb-1">
                             {item.name || 'Unnamed Item'}
                           </p>
                           {item.category && (
-                            <p className="font-body text-xs text-muted-foreground truncate">
+                            <p className="font-body text-xs text-muted-foreground mb-2">
                               {item.category}
+                            </p>
+                          )}
+                          {item.price && (
+                            <p className="font-body font-semibold text-primary mb-2">
+                              ₱{item.price.toLocaleString()}
+                            </p>
+                          )}
+                          {item.dimensions && (
+                            <p className="font-body text-xs text-muted-foreground">
+                              {item.dimensions}
                             </p>
                           )}
                         </div>
@@ -222,13 +289,33 @@ export default function SharedDesignPage() {
                   </div>
                 )}
 
+                {furnitureCount > 0 && (
+                  <div className="mt-4 p-4 bg-primary/5 rounded-lg border border-primary/20">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-body text-sm font-medium text-foreground">Total Items:</span>
+                      <span className="font-body text-sm font-semibold text-foreground">{furnitureCount}</span>
+                    </div>
+                    {design.design_data.furniture.some(item => item.price) && (
+                      <div className="flex items-center justify-between">
+                        <span className="font-body text-sm font-medium text-foreground">Estimated Total:</span>
+                        <span className="font-heading text-lg font-bold text-primary">
+                          ₱{design.design_data.furniture
+                            .filter(item => item.price)
+                            .reduce((sum, item) => sum + item.price, 0)
+                            .toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="mt-6 pt-6 border-t border-border">
                   <button
-                    onClick={() => router.push('/virtual-room-designer')}
+                    onClick={() => router.push(user ? '/virtual-room-designer' : '/login')}
                     className="w-full px-4 py-3 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-fast font-body font-medium flex items-center justify-center gap-2"
                   >
-                    <Icon name="PencilIcon" size={16} variant="outline" />
-                    Create My Own Design
+                    <Icon name={user ? "PencilIcon" : "ArrowRightCircleIcon"} size={16} variant="outline" />
+                    {user ? 'Create My Own Design' : 'Sign In to Create Your Own'}
                   </button>
                 </div>
               </div>
