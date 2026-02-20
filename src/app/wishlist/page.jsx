@@ -59,15 +59,15 @@ export default function WishlistPage() {
     }
   };
 
-  const handleAddToCart = async (productId) => {
+  const handleAddToCart = async (item) => {
+    const productId = item?.product?.id;
+    const variantId = item?.variantId || null;
+    const price = item?.variant?.price ?? item?.product?.basePrice;
     try {
-      setAddingToCart(productId);
-      await cartService?.addToCart(user?.id, productId, 1);
+      setAddingToCart(item?.id);
+      await cartService?.addToCart({ productId, variantId, quantity: 1, price });
       // Optionally remove from wishlist after adding to cart
-      const wishlistItem = wishlistItems?.find(item => item?.product?.id === productId);
-      if (wishlistItem?.id) {
-        await handleRemoveFromWishlist(wishlistItem?.id);
-      }
+      await handleRemoveFromWishlist(item?.id);
     } catch (err) {
       setError(err?.message || 'Failed to add to cart');
     } finally {
@@ -79,7 +79,12 @@ export default function WishlistPage() {
     try {
       const selectedProducts = wishlistItems?.filter(item => selectedItems?.has(item?.id));
       for (const item of selectedProducts) {
-        await cartService?.addToCart(user?.id, item?.product?.id, 1);
+        await cartService?.addToCart({
+          productId: item?.product?.id,
+          variantId: item?.variantId || null,
+          quantity: 1,
+          price: item?.variant?.price ?? item?.product?.basePrice
+        });
         await handleRemoveFromWishlist(item?.id);
       }
       setSelectedItems(new Set());
@@ -290,9 +295,9 @@ export default function WishlistPage() {
                 isSelected={selectedItems?.has(item?.id)}
                 onToggleSelect={() => toggleSelectItem(item?.id)}
                 onRemove={() => handleRemoveFromWishlist(item?.id)}
-                onAddToCart={() => handleAddToCart(item?.product?.id)}
+                onAddToCart={() => handleAddToCart(item)}
                 onViewDetails={() => router?.push(`/product/${item?.product?.id}`)}
-                isAddingToCart={addingToCart === item?.product?.id}
+                isAddingToCart={addingToCart === item?.id}
               />
             ))}
           </div>
@@ -304,12 +309,24 @@ export default function WishlistPage() {
 
 function WishlistCard({ item, isSelected, onToggleSelect, onRemove, onAddToCart, onViewDetails, isAddingToCart }) {
   const product = item?.product || {};
+  const variant = item?.variant || null;
+  // Variant-specific price takes priority; fall back to product base price
+  const displayPrice = variant?.price ?? product?.basePrice ?? 0;
   const formattedPrice = new Intl.NumberFormat('en-PH', {
     style: 'currency',
     currency: 'PHP'
-  })?.format(product?.basePrice || 0);
+  })?.format(displayPrice);
 
-  const isAvailable = product?.isActive;
+  // Variant-specific availability: variant must exist + be active + have stock.
+  // If no variant stored, fall back to product-level isActive.
+  const isAvailable = variant
+    ? (variant?.isActive !== false && (variant?.stockQuantity ?? 1) > 0)
+    : product?.isActive;
+
+  // Use variant image when available
+  const displayImage = variant?.imageUrl || product?.imageUrl || '/assets/images/no_image.png';
+  // Show variant color as a badge
+  const variantColor = variant?.color || null;
 
   return (
     <div className="bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow">
@@ -325,10 +342,15 @@ function WishlistCard({ item, isSelected, onToggleSelect, onRemove, onAddToCart,
       {/* Product Image */}
       <div className="relative h-48 bg-gray-100">
         <AppImage
-          src={product?.imageUrl || '/assets/images/no_image.png'}
+          src={displayImage}
           alt={product?.name || 'Product image'}
           className="w-full h-full object-cover"
         />
+        {variantColor && (
+          <span className="absolute bottom-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded-full">
+            {variantColor}
+          </span>
+        )}
         {!isAvailable && (
           <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
             <span className="bg-red-600 text-white px-4 py-2 rounded-full text-sm font-semibold">
@@ -347,7 +369,7 @@ function WishlistCard({ item, isSelected, onToggleSelect, onRemove, onAddToCart,
         </div>
 
         <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2">
-          {product?.name || 'Unnamed Product'}
+          {product?.name || 'Unnamed Product'}{variantColor ? ` — ${variantColor}` : ''}
         </h3>
 
         <p className="text-2xl font-bold text-blue-600 mb-4">

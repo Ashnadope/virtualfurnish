@@ -14,6 +14,7 @@ export const wishlistService = {
       const { data, error } = await supabase?.from('wishlist_items')?.select(`
           id,
           created_at,
+          variant_id,
           product:products (
             id,
             name,
@@ -23,6 +24,14 @@ export const wishlistService = {
             brand,
             is_active,
             sku
+          ),
+          variant:product_variants (
+            id,
+            color,
+            image_url,
+            price,
+            stock_quantity,
+            is_active
           )
         `)?.eq('user_id', userId)?.order('created_at', { ascending: false });
 
@@ -32,6 +41,7 @@ export const wishlistService = {
       return data?.map(item => ({
         id: item?.id,
         createdAt: item?.created_at,
+        variantId: item?.variant_id,
         product: {
           id: item?.product?.id,
           name: item?.product?.name,
@@ -41,7 +51,15 @@ export const wishlistService = {
           brand: item?.product?.brand,
           isActive: item?.product?.is_active,
           sku: item?.product?.sku
-        }
+        },
+        variant: item?.variant ? {
+          id: item?.variant?.id,
+          color: item?.variant?.color,
+          imageUrl: item?.variant?.image_url,
+          price: item?.variant?.price,
+          stockQuantity: item?.variant?.stock_quantity,
+          isActive: item?.variant?.is_active
+        } : null
       })) || [];
     } catch (error) {
       console.error('Error fetching wishlist items:', error);
@@ -50,15 +68,16 @@ export const wishlistService = {
   },
 
   /**
-   * Add a product to wishlist
+   * Add a product variant to wishlist
    */
-  async addToWishlist(userId, productId) {
+  async addToWishlist(userId, productId, variantId = null) {
     try {
       const supabase = createClient();
       
       const { data, error } = await supabase?.from('wishlist_items')?.insert({
           user_id: userId,
-          product_id: productId
+          product_id: productId,
+          variant_id: variantId || null
         })?.select()?.single();
 
       if (error) throw error;
@@ -67,6 +86,7 @@ export const wishlistService = {
         id: data?.id,
         userId: data?.user_id,
         productId: data?.product_id,
+        variantId: data?.variant_id,
         createdAt: data?.created_at
       };
     } catch (error) {
@@ -94,13 +114,17 @@ export const wishlistService = {
   },
 
   /**
-   * Check if a product is in the user's wishlist
+   * Check if a product/variant is in the user's wishlist
    */
-  async isInWishlist(userId, productId) {
+  async isInWishlist(userId, productId, variantId = null) {
     try {
       const supabase = createClient();
       
-      const { data, error } = await supabase?.from('wishlist_items')?.select('id')?.eq('user_id', userId)?.eq('product_id', productId)?.single();
+      let query = supabase?.from('wishlist_items')?.select('id')?.eq('user_id', userId)?.eq('product_id', productId);
+      if (variantId) {
+        query = query.eq('variant_id', variantId);
+      }
+      const { data, error } = await query?.single();
 
       if (error && error?.code !== 'PGRST116') throw error;
 

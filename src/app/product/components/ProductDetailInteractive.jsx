@@ -84,7 +84,7 @@ export default function ProductDetailInteractive({ product }) {
         router.push('/login');
         return;
       }
-      await wishlistService.addToWishlist(user.id, product?.id);
+      await wishlistService.addToWishlist(user.id, product?.id, selectedVariant?.id ?? null);
       setWishlistDone(true);
       setTimeout(() => setWishlistDone(false), 3000);
     } catch (err) {

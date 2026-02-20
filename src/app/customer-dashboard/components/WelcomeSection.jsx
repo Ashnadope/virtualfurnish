@@ -1,4 +1,5 @@
 import PropTypes from 'prop-types';
+import Link from 'next/link';
 
 export default function WelcomeSection({ userName, savedDesigns, wishlistItems }) {
   return (
@@ -17,10 +18,10 @@ export default function WelcomeSection({ userName, savedDesigns, wishlistItems }
             <p className="font-heading text-3xl font-bold text-primary">{savedDesigns}</p>
             <p className="font-body text-sm text-muted-foreground mt-1">Saved Designs</p>
           </div>
-          <div className="text-center">
-            <p className="font-heading text-3xl font-bold text-accent">{wishlistItems}</p>
+          <Link href="/wishlist" className="text-center group hover:opacity-80 transition-fast">
+            <p className="font-heading text-3xl font-bold text-accent group-hover:underline">{wishlistItems}</p>
             <p className="font-body text-sm text-muted-foreground mt-1">Wishlist Items</p>
-          </div>
+          </Link>
         </div>
       </div>
     </div>

@@ -8,11 +8,14 @@ import CustomerDashboardInteractive from './components/CustomerDashboardInteract
 import { useAuth } from '@/contexts/AuthContext';
 import { orderService } from '@/services/order.service';
 import { roomDesignService } from '@/services/roomDesign.service';
+import { wishlistService } from '@/services/wishlist.service';
 import { createClient } from '@/lib/supabase/client';
 
 export default function CustomerDashboard() {
   const { user } = useAuth();
   const [orderCount, setOrderCount] = useState(0);
+  const [wishlistCount, setWishlistCount] = useState(0);
+  const [totalDesignsCount, setTotalDesignsCount] = useState(0);
   const [userName, setUserName] = useState('Customer');
   const [recentDesigns, setRecentDesigns] = useState([]);
 
@@ -70,6 +73,9 @@ export default function CustomerDashboard() {
           return;
         }
 
+        // Store total count before slicing
+        setTotalDesignsCount(data.length);
+
         // Get latest 3 designs with signed URLs
         const latest3 = data.slice(0, 3);
         const designsWithUrls = await Promise.all(
@@ -121,12 +127,22 @@ export default function CustomerDashboard() {
       }
     };
 
+    const loadWishlistCount = async () => {
+      try {
+        const items = await wishlistService.getWishlistItems(user.id);
+        if (isMounted) setWishlistCount(items?.length || 0);
+      } catch (error) {
+        console.error('Error loading wishlist count:', error);
+      }
+    };
+
     const loadData = async () => {
       if (user?.id && isMounted) {
         try {
           // Load data sequentially to avoid auth lock conflicts
           await loadUserData();
           if (isMounted) await loadOrderCount();
+          if (isMounted) await loadWishlistCount();
           if (isMounted) await loadRecentDesigns();
         } catch (error) {
           console.error('Error loading dashboard data:', error);
@@ -143,8 +159,8 @@ export default function CustomerDashboard() {
 
   const dashboardData = {
     userName: userName,
-    savedDesigns: recentDesigns.length,
-    wishlistItems: 12,
+    savedDesigns: totalDesignsCount,
+    wishlistItems: wishlistCount,
     orderCount: orderCount,
     actionTiles: [
     {
