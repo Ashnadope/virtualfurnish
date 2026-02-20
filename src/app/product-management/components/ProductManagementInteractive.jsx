@@ -77,7 +77,7 @@ export default function ProductManagementInteractive({ initialProducts }) {
         const { data, error } = await productService.updateProduct(productData?.id, productData);
         if (error) {
           console.error('Error updating product:', error);
-          return;
+          throw new Error(error);
         }
         setProducts(prev =>
           prev?.map(p => (p?.id === productData?.id ? { ...p, ...data } : p))
@@ -87,7 +87,7 @@ export default function ProductManagementInteractive({ initialProducts }) {
         const { data, error } = await productService.createProduct(productData);
         if (error) {
           console.error('Error creating product:', error);
-          return;
+          throw new Error(error);
         }
         setProducts(prev => [...prev, data]);
       }
@@ -95,6 +95,7 @@ export default function ProductManagementInteractive({ initialProducts }) {
       setEditingProduct(null);
     } catch (error) {
       console.error('Error saving product:', error);
+      throw error;
     }
   };
 

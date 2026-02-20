@@ -64,9 +64,7 @@ export default function ProductDetailInteractive({ product }) {
   };
 
   const colorVariants = product?.variants?.filter(v => v?.color);
-  const sizeVariants = product?.variants?.filter(v => v?.size);
   const uniqueColors = [...new Set(colorVariants?.map(v => v?.color)?.filter(Boolean))];
-  const uniqueSizes = [...new Set(sizeVariants?.map(v => v?.size)?.filter(Boolean))];
 
   return (
     <div className="space-y-8">
@@ -83,10 +81,10 @@ export default function ProductDetailInteractive({ product }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* Product Image */}
         <div className="bg-surface rounded-lg border border-border overflow-hidden">
-          {!imageError ? (
+          {!imageError && (selectedVariant?.imageUrl || product?.imageUrl) ? (
             <AppImage
-              src={product?.imageUrl || '/assets/images/no_image.png'}
-              alt={product?.name}
+              src={selectedVariant?.imageUrl || product?.imageUrl}
+              alt={`${product?.name}${selectedVariant?.color ? ` - ${selectedVariant.color}` : ''}`}
               className="w-full h-auto object-cover aspect-square"
               onError={() => setImageError(true)}
             />
@@ -138,7 +136,10 @@ export default function ProductDetailInteractive({ product }) {
                         key={color}
                         onClick={() => {
                           const variant = product?.variants?.find(v => v?.color === color);
-                          if (variant) setSelectedVariant(variant);
+                          if (variant) {
+                            setSelectedVariant(variant);
+                            setImageError(false);
+                          }
                         }}
                         className={`px-4 py-2 rounded-lg border-2 transition-all text-sm font-medium ${
                           selectedVariant?.color === color
@@ -153,30 +154,27 @@ export default function ProductDetailInteractive({ product }) {
                 </div>
               )}
 
-              {/* Size Selector */}
-              {uniqueSizes?.length > 0 && (
-                <div>
-                  <label className="block text-sm font-semibold text-foreground mb-3">
-                    Size: <span className="text-primary">{selectedVariant?.size || 'Select'}</span>
-                  </label>
-                  <div className="flex flex-wrap gap-3">
-                    {uniqueSizes?.map((size) => (
-                      <button
-                        key={size}
-                        onClick={() => {
-                          const variant = product?.variants?.find(v => v?.size === size);
-                          if (variant) setSelectedVariant(variant);
-                        }}
-                        className={`px-4 py-2 rounded-lg border-2 transition-all text-sm font-medium ${
-                          selectedVariant?.size === size
-                            ? 'border-primary bg-primary text-primary-foreground'
-                            : 'border-border text-foreground hover:border-primary'
-                        }`}
-                      >
-                        {size}
-                      </button>
-                    ))}
-                  </div>
+              {/* Variant Specs */}
+              {selectedVariant && (selectedVariant?.dimensions || selectedVariant?.material || selectedVariant?.weight) && (
+                <div className="grid grid-cols-2 gap-3 pt-2">
+                  {selectedVariant?.dimensions && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Dimensions</p>
+                      <p className="text-sm font-medium text-foreground">{selectedVariant.dimensions}</p>
+                    </div>
+                  )}
+                  {selectedVariant?.material && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Material</p>
+                      <p className="text-sm font-medium text-foreground">{selectedVariant.material}</p>
+                    </div>
+                  )}
+                  {selectedVariant?.weight && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Weight</p>
+                      <p className="text-sm font-medium text-foreground">{selectedVariant.weight} kg</p>
+                    </div>
+                  )}
                 </div>
               )}
 

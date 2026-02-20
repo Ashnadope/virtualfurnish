@@ -9,15 +9,23 @@ export default function ProductCard({ product }) {
   const router = useRouter();
   const [imageError, setImageError] = useState(false);
 
-  const lowestPrice = product?.variants?.length > 0
-    ? Math.min(...product?.variants?.map(v => parseFloat(v?.price || product?.basePrice || 0)))
-    : parseFloat(product?.basePrice || 0);
+  const activeVariants = product?.variants?.filter(v => v?.isActive !== false) || [];
+  const firstVariant = activeVariants.find(v => v?.imageUrl) || activeVariants[0];
 
-  const totalStock = product?.variants?.length > 0
-    ? product?.variants?.reduce((sum, v) => sum + (parseInt(v?.stockQuantity) || 0), 0)
-    : 0;
+  const prices = activeVariants
+    .map(v => parseFloat(v?.price || 0))
+    .filter(p => p > 0);
 
+  const lowestPrice = prices.length > 0 ? Math.min(...prices) : parseFloat(product?.basePrice || 0);
+  const highestPrice = prices.length > 0 ? Math.max(...prices) : lowestPrice;
+  const hasPriceRange = highestPrice > lowestPrice;
+
+  const totalStock = activeVariants.reduce((sum, v) => sum + (parseInt(v?.stockQuantity) || 0), 0);
   const isInStock = totalStock > 0;
+
+  const uniqueColors = [...new Set(activeVariants.map(v => v?.color).filter(Boolean))];
+
+  const cardImage = firstVariant?.imageUrl || product?.imageUrl || null;
 
   const handleCardClick = () => {
     router?.push(`/product/${product?.id}`);
@@ -39,9 +47,9 @@ export default function ProductCard({ product }) {
     >
       {/* Product Image */}
       <div className="relative h-64 bg-gray-100">
-        {!imageError ? (
+        {!imageError && cardImage ? (
           <AppImage
-            src={product?.imageUrl || '/assets/images/no_image.png'}
+            src={cardImage}
             alt={product?.name || 'Product image'}
             className="w-full h-full object-cover"
             onError={() => setImageError(true)}
@@ -92,37 +100,23 @@ export default function ProductCard({ product }) {
         )}
 
         {/* Variants Info */}
-        {product?.variants?.length > 0 && (
-          <div className="mb-3 space-y-1">
-            {/* Size Range */}
-            {product?.variants?.some(v => v?.size) && (
-              <p className="text-xs text-gray-500">
-                <span className="font-medium">Size: </span>
-                {product?.variants?.map(v => v?.size)?.filter(Boolean)?.join(', ')}
-              </p>
-            )}
-            
-            {/* Available Colors */}
-            {product?.variants?.some(v => v?.color) && (
-              <p className="text-xs text-gray-500">
-                <span className="font-medium">Colors: </span>
-                {[...new Set(product?.variants?.map(v => v?.color)?.filter(Boolean))]?.join(', ')}
-              </p>
-            )}
-          </div>
+        {uniqueColors.length > 0 && (
+          <p className="text-xs text-gray-500 mb-3">
+            <span className="font-medium">Available in: </span>
+            {uniqueColors.slice(0, 4).join(', ')}
+            {uniqueColors.length > 4 && ` +${uniqueColors.length - 4} more`}
+          </p>
         )}
 
         {/* Price and Stock */}
         <div className="flex items-center justify-between">
           <div>
             <p className="text-2xl font-bold text-blue-600">
-              {formatPrice(lowestPrice)}
+              {hasPriceRange
+                ? `${formatPrice(lowestPrice)} – ${formatPrice(highestPrice)}`
+                : formatPrice(lowestPrice)
+              }
             </p>
-            {product?.variants?.length > 1 && (
-              <p className="text-xs text-gray-500">
-                Starting price
-              </p>
-            )}
           </div>
           
           {isInStock && (
@@ -163,10 +157,14 @@ ProductCard.propTypes = {
     variants: PropTypes?.arrayOf(PropTypes?.shape({
       id: PropTypes?.string,
       name: PropTypes?.string,
-      size: PropTypes?.string,
       color: PropTypes?.string,
+      dimensions: PropTypes?.string,
+      material: PropTypes?.string,
+      weight: PropTypes?.string,
+      imageUrl: PropTypes?.string,
       price: PropTypes?.oneOfType([PropTypes?.string, PropTypes?.number]),
-      stockQuantity: PropTypes?.oneOfType([PropTypes?.string, PropTypes?.number])
+      stockQuantity: PropTypes?.oneOfType([PropTypes?.string, PropTypes?.number]),
+      isActive: PropTypes?.bool
     }))
   })?.isRequired
 };

@@ -16,14 +16,32 @@ export default function ProductTableRow({ product, onEdit, onDelete, onToggleSta
     })?.format(price);
   };
 
+  const formatPriceRange = (product) => {
+    const variants = product?.variants;
+    if (!variants || variants.length === 0) return formatPrice(product?.price ?? 0);
+    const prices = variants.map(v => parseFloat(v.price || 0)).filter(n => !isNaN(n)).sort((a, b) => a - b);
+    if (prices.length === 0) return formatPrice(product?.price ?? 0);
+    const min = prices[0];
+    const max = prices[prices.length - 1];
+    return min === max ? formatPrice(min) : `${formatPrice(min)} – ${formatPrice(max)}`;
+  };
+
   const getStatusColor = (status) => {
     return status === 'active' ?'bg-success/10 text-success border-success/20' :'bg-muted text-muted-foreground border-border';
   };
 
-  const getStockColor = (stock) => {
-    if (stock === 0) return 'text-error';
-    if (stock < 10) return 'text-warning';
-    return 'text-success';
+  const getStockSummary = (product) => {
+    const variants = product?.variants;
+    if (!variants || variants.length === 0) {
+      const s = product?.stock ?? 0;
+      return { total: s, outCount: s === 0 ? 1 : 0, lowCount: (s > 0 && s < 10) ? 1 : 0 };
+    }
+    const stocks = variants.map(v => v.stockQuantity ?? 0);
+    return {
+      total: stocks.reduce((a, b) => a + b, 0),
+      outCount: stocks.filter(s => s === 0).length,
+      lowCount: stocks.filter(s => s > 0 && s < 10).length,
+    };
   };
 
   return (
@@ -67,12 +85,28 @@ export default function ProductTableRow({ product, onEdit, onDelete, onToggleSta
         </span>
       </td>
       <td className="px-4 py-3">
-        <span className="font-body font-semibold text-sm text-foreground">{formatPrice(product?.price)}</span>
+        <span className="font-body font-semibold text-sm text-foreground">{formatPriceRange(product)}</span>
       </td>
       <td className="px-4 py-3">
-        <span className={`font-body font-medium text-sm ${getStockColor(product?.stock)}`}>
-          {product?.stock}
-        </span>
+        {(() => {
+          const { total, outCount, lowCount } = getStockSummary(product);
+          const totalColor = outCount > 0 ? 'text-error' : lowCount > 0 ? 'text-warning' : 'text-success';
+          return (
+            <div className="flex flex-col gap-0.5">
+              <span className={`font-body font-medium text-sm ${totalColor}`}>{total}</span>
+              {outCount > 0 && (
+                <span className="text-xs text-error font-medium">
+                  {outCount} variant{outCount > 1 ? 's' : ''} out of stock
+                </span>
+              )}
+              {outCount === 0 && lowCount > 0 && (
+                <span className="text-xs text-warning font-medium">
+                  {lowCount} variant{lowCount > 1 ? 's' : ''} low stock
+                </span>
+              )}
+            </div>
+          );
+        })()}
       </td>
       <td className="px-4 py-3">
         <button

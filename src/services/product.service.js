@@ -35,18 +35,23 @@ export const productService = {
         isActive: product?.is_active,
         createdAt: product?.created_at,
         updatedAt: product?.updated_at,
-        variants: product?.product_variants?.map(variant => ({
-          id: variant?.id,
-          name: variant?.name,
-          sku: variant?.sku,
-          size: variant?.size,
-          color: variant?.color,
-          material: variant?.material,
-          price: variant?.price,
-          stockQuantity: variant?.stock_quantity,
-          productId: variant?.product_id,
-          createdAt: variant?.created_at
-        })) || []
+        variants: product?.product_variants
+          ?.filter(v => v?.is_active !== false)
+          ?.map(variant => ({
+            id: variant?.id,
+            name: variant?.name,
+            sku: variant?.sku,
+            color: variant?.color,
+            dimensions: variant?.dimensions,
+            material: variant?.material,
+            weight: variant?.weight,
+            imageUrl: variant?.image_url,
+            price: variant?.price,
+            stockQuantity: variant?.stock_quantity,
+            isActive: variant?.is_active,
+            productId: variant?.product_id,
+            createdAt: variant?.created_at
+          })) || []
       })) || [];
 
       return { data: formattedData, error: null };
@@ -79,23 +84,29 @@ export const productService = {
         category: product?.category,
         description: product?.description,
         imageUrl: product?.image_url,
+        imageAlt: product?.image_alt,
         basePrice: product?.base_price,
         sku: product?.sku,
         isActive: product?.is_active,
         createdAt: product?.created_at,
         updatedAt: product?.updated_at,
-        variants: product?.product_variants?.map(variant => ({
-          id: variant?.id,
-          name: variant?.name,
-          sku: variant?.sku,
-          size: variant?.size,
-          color: variant?.color,
-          material: variant?.material,
-          price: variant?.price,
-          stockQuantity: variant?.stock_quantity,
-          productId: variant?.product_id,
-          createdAt: variant?.created_at
-        })) || []
+        variants: product?.product_variants
+          ?.filter(v => v?.is_active !== false)
+          ?.map(variant => ({
+            id: variant?.id,
+            name: variant?.name,
+            sku: variant?.sku,
+            color: variant?.color,
+            dimensions: variant?.dimensions,
+            material: variant?.material,
+            weight: variant?.weight,
+            imageUrl: variant?.image_url,
+            price: variant?.price,
+            stockQuantity: variant?.stock_quantity,
+            isActive: variant?.is_active,
+            productId: variant?.product_id,
+            createdAt: variant?.created_at
+          })) || []
       })) || [];
 
       return { data: formattedData, error: null };
@@ -128,23 +139,29 @@ export const productService = {
         category: product?.category,
         description: product?.description,
         imageUrl: product?.image_url,
+        imageAlt: product?.image_alt,
         basePrice: product?.base_price,
         sku: product?.sku,
         isActive: product?.is_active,
         createdAt: product?.created_at,
         updatedAt: product?.updated_at,
-        variants: product?.product_variants?.map(variant => ({
-          id: variant?.id,
-          name: variant?.name,
-          sku: variant?.sku,
-          size: variant?.size,
-          color: variant?.color,
-          material: variant?.material,
-          price: variant?.price,
-          stockQuantity: variant?.stock_quantity,
-          productId: variant?.product_id,
-          createdAt: variant?.created_at
-        })) || []
+        variants: product?.product_variants
+          ?.filter(v => v?.is_active !== false)
+          ?.map(variant => ({
+            id: variant?.id,
+            name: variant?.name,
+            sku: variant?.sku,
+            color: variant?.color,
+            dimensions: variant?.dimensions,
+            material: variant?.material,
+            weight: variant?.weight,
+            imageUrl: variant?.image_url,
+            price: variant?.price,
+            stockQuantity: variant?.stock_quantity,
+            isActive: variant?.is_active,
+            productId: variant?.product_id,
+            createdAt: variant?.created_at
+          })) || []
       })) || [];
 
       return { data: formattedData, error: null };
@@ -182,18 +199,23 @@ export const productService = {
         isActive: data?.is_active,
         createdAt: data?.created_at,
         updatedAt: data?.updated_at,
-        variants: data?.product_variants?.map(variant => ({
-          id: variant?.id,
-          name: variant?.name,
-          sku: variant?.sku,
-          size: variant?.size,
-          color: variant?.color,
-          material: variant?.material,
-          price: variant?.price,
-          stockQuantity: variant?.stock_quantity,
-          productId: variant?.product_id,
-          createdAt: variant?.created_at
-        })) || []
+        variants: data?.product_variants
+          ?.filter(v => v?.is_active !== false)
+          ?.map(variant => ({
+            id: variant?.id,
+            name: variant?.name,
+            sku: variant?.sku,
+            color: variant?.color,
+            dimensions: variant?.dimensions,
+            material: variant?.material,
+            weight: variant?.weight,
+            imageUrl: variant?.image_url,
+            price: variant?.price,
+            stockQuantity: variant?.stock_quantity,
+            isActive: variant?.is_active,
+            productId: variant?.product_id,
+            createdAt: variant?.created_at
+          })) || []
       };
 
       return { data: formattedData, error: null };
@@ -233,56 +255,80 @@ export const productService = {
   async createProduct(productData) {
     try {
       const supabase = createClient();
-      
-      console.log('Creating product with data:', productData);
-      
-      // SKU will be auto-generated by database trigger
-      const { data, error } = await supabase?.from('products')?.insert([
-        {
-          name: productData?.name,
-          description: productData?.description,
-          brand: productData?.brand || null,
-          category: productData?.category,
-          base_price: productData?.price || productData?.basePrice,
-          image_url: productData?.image || productData?.imageUrl,
-          image_alt: productData?.imageAlt,
-          dimensions: productData?.dimensions,
-          material: productData?.material,
-          weight: productData?.weight,
-          color: productData?.color,
-          stock_quantity: productData?.stock || 0,
-          is_active: productData?.status === 'active' || productData?.isActive !== false
-        }
-      ])?.select()?.single();
+      const variants = productData?.variants || [];
+      const firstVariant = variants[0];
+      const isActive = productData?.status === 'active';
 
-      if (error) {
-        console.error('Supabase error creating product:', error);
-        throw error;
-      }
+      // Insert product row — base_price pulled from first variant to satisfy NOT NULL
+      const { data: product, error: productError } = await supabase
+        .from('products')
+        .insert([{
+          name: productData.name,
+          description: productData.description,
+          brand: productData.brand || null,
+          category: productData.category,
+          base_price: parseFloat(firstVariant?.price ?? 0),
+          image_alt: productData.imageAlt,
+          is_active: isActive,
+        }])
+        .select()
+        .single();
 
-      console.log('Product created successfully:', data);
+      if (productError) throw productError;
 
-      // Format response to match UI expectations
-      return { 
+      // Insert all variant rows
+      const variantRows = variants.map(v => ({
+        product_id: product.id,
+        name: v.color || productData.name,
+        color: v.color,
+        price: parseFloat(v.price || 0),
+        stock_quantity: parseInt(v.stock_quantity || 0),
+        dimensions: v.dimensions || null,
+        material: v.material || null,
+        weight: v.weight ? String(v.weight) : null,
+        image_url: v.image || null,
+        // is_active omitted — defaults to TRUE via DB column default
+      }));
+
+      const { data: insertedVariants, error: variantsError } = await supabase
+        .from('product_variants')
+        .insert(variantRows)
+        .select();
+
+      if (variantsError) throw variantsError;
+
+      const mappedVariants = (insertedVariants || []).map(v => ({
+        id: v.id,
+        color: v.color,
+        price: v.price,
+        stockQuantity: v.stock_quantity,
+        dimensions: v.dimensions,
+        material: v.material,
+        weight: v.weight,
+        imageUrl: v.image_url,
+        isActive: v.is_active,
+        productId: v.product_id,
+      }));
+
+      const prices = mappedVariants.map(v => v.price).filter(Boolean).sort((a, b) => a - b);
+      const totalStock = mappedVariants.reduce((s, v) => s + (v.stockQuantity || 0), 0);
+
+      return {
         data: {
-          id: data?.id,
-          name: data?.name,
-          brand: data?.brand,
-          category: data?.category,
-          description: data?.description,
-          image: data?.image_url,
-          imageAlt: data?.image_alt,
-          price: data?.base_price,
-          sku: data?.sku, // SKU was auto-generated
-          dimensions: data?.dimensions,
-          material: data?.material,
-          weight: data?.weight,
-          color: data?.color,
-          stock: data?.stock_quantity,
-          status: data?.is_active ? 'active' : 'inactive',
-          variants: []
-        }, 
-        error: null 
+          id: product.id,
+          name: product.name,
+          brand: product.brand,
+          sku: product.sku,
+          category: product.category,
+          price: prices[0] ?? 0,
+          stock: totalStock,
+          status: product.is_active ? 'active' : 'inactive',
+          description: product.description,
+          imageAlt: product.image_alt,
+          image: mappedVariants[0]?.imageUrl || null,
+          variants: mappedVariants,
+        },
+        error: null,
       };
     } catch (error) {
       console.error('Error creating product:', error);
@@ -299,54 +345,119 @@ export const productService = {
   async updateProduct(productId, productData) {
     try {
       const supabase = createClient();
-      
-      console.log('Updating product:', productId, 'with data:', productData);
-      
-      // SKU should not be updated (it's auto-generated and unique)
-      const { data, error } = await supabase?.from('products')?.update({
-        name: productData?.name,
-        description: productData?.description,
-        brand: productData?.brand || null,
-        category: productData?.category,
-        base_price: productData?.price || productData?.basePrice,
-        image_url: productData?.image || productData?.imageUrl,
-        image_alt: productData?.imageAlt,
-        dimensions: productData?.dimensions,
-        material: productData?.material,
-        weight: productData?.weight,
-        color: productData?.color,
-        stock_quantity: productData?.stock,
-        is_active: productData?.status === 'active' || productData?.isActive !== false
-      })?.eq('id', productId)?.select()?.single();
+      const submittedVariants = productData?.variants || [];
+      const isActive = productData?.status === 'active';
+      const firstVariant = submittedVariants[0];
 
-      if (error) {
-        console.error('Supabase error updating product:', error);
-        throw error;
+      // 1. Update product row
+      const { data: product, error: productError } = await supabase
+        .from('products')
+        .update({
+          name: productData.name,
+          description: productData.description,
+          brand: productData.brand || null,
+          category: productData.category,
+          base_price: parseFloat(firstVariant?.price ?? 0),
+          image_alt: productData.imageAlt,
+          is_active: isActive,
+        })
+        .eq('id', productId)
+        .select()
+        .single();
+
+      if (productError) throw productError;
+
+      // 2. Fetch existing variant IDs to detect deletions
+      const { data: existingVariants, error: fetchError } = await supabase
+        .from('product_variants')
+        .select('id')
+        .eq('product_id', productId);
+
+      if (fetchError) throw fetchError;
+
+      const existingIds = (existingVariants || []).map(v => v.id);
+      const submittedIds = submittedVariants.filter(v => v.id).map(v => v.id);
+      const idsToDelete = existingIds.filter(id => !submittedIds.includes(id));
+
+      // 3. Delete removed variants
+      if (idsToDelete.length > 0) {
+        const { error: deleteError } = await supabase
+          .from('product_variants')
+          .delete()
+          .in('id', idsToDelete);
+        if (deleteError) throw deleteError;
       }
 
-      console.log('Product updated successfully:', data);
+      // 4a. UPDATE existing variants (have an id)
+      const toUpdate = submittedVariants.filter(v => v.id);
+      // 4b. INSERT new variants (no id yet)
+      const toInsert = submittedVariants.filter(v => !v.id);
 
-      // Format response to match UI expectations
-      return { 
+      const buildRow = (v, includeId = false) => ({
+        ...(includeId ? { id: v.id } : {}),
+        product_id: productId,
+        name: v.color || productData.name,
+        color: v.color,
+        price: parseFloat(v.price || 0),
+        stock_quantity: parseInt(v.stock_quantity || 0),
+        dimensions: v.dimensions || null,
+        material: v.material || null,
+        weight: v.weight ? String(v.weight) : null,
+        image_url: v.image || null,
+      });
+
+      let upsertedVariants = [];
+
+      if (toUpdate.length > 0) {
+        const { data: updated, error: updateError } = await supabase
+          .from('product_variants')
+          .upsert(toUpdate.map(v => buildRow(v, true)), { onConflict: 'id' })
+          .select();
+        if (updateError) throw updateError;
+        upsertedVariants = upsertedVariants.concat(updated || []);
+      }
+
+      if (toInsert.length > 0) {
+        const { data: inserted, error: insertError } = await supabase
+          .from('product_variants')
+          .insert(toInsert.map(v => buildRow(v, false)))
+          .select();
+        if (insertError) throw insertError;
+        upsertedVariants = upsertedVariants.concat(inserted || []);
+      }
+
+      const mappedVariants = (upsertedVariants || []).map(v => ({
+        id: v.id,
+        color: v.color,
+        price: v.price,
+        stockQuantity: v.stock_quantity,
+        dimensions: v.dimensions,
+        material: v.material,
+        weight: v.weight,
+        imageUrl: v.image_url,
+        isActive: v.is_active,
+        productId: v.product_id,
+      }));
+
+      const prices = mappedVariants.map(v => v.price).filter(Boolean).sort((a, b) => a - b);
+      const totalStock = mappedVariants.reduce((s, v) => s + (v.stockQuantity || 0), 0);
+
+      return {
         data: {
-          id: data?.id,
-          name: data?.name,
-          brand: data?.brand,
-          category: data?.category,
-          description: data?.description,
-          image: data?.image_url,
-          imageAlt: data?.image_alt,
-          price: data?.base_price,
-          sku: data?.sku, // Return existing SKU
-          dimensions: data?.dimensions,
-          material: data?.material,
-          weight: data?.weight,
-          color: data?.color,
-          stock: data?.stock_quantity || 0,
-          status: data?.is_active ? 'active' : 'inactive',
-          variants: productData?.variants || []
-        }, 
-        error: null 
+          id: product.id,
+          name: product.name,
+          brand: product.brand,
+          sku: product.sku,
+          category: product.category,
+          price: prices[0] ?? 0,
+          stock: totalStock,
+          status: product.is_active ? 'active' : 'inactive',
+          description: product.description,
+          imageAlt: product.image_alt,
+          image: mappedVariants[0]?.imageUrl || null,
+          variants: mappedVariants,
+        },
+        error: null,
       };
     } catch (error) {
       console.error('Error updating product:', error);

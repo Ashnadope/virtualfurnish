@@ -54,12 +54,14 @@ export async function POST(request) {
     }
 
     // Create furniture catalog summary for AI context
+    // furnitureData is already expanded per-variant, so each item has its own color/image
     const furnitureCatalog = furnitureData?.map(item => ({
       id: item?.id,
-      name: item?.name,
+      name: item?.name,          // already includes color, e.g. "Sofa (Dark Grey)"
       category: item?.category,
-      material: item?.material,
-      dimensions: item?.dimensions,
+      color: item?.color || null,
+      material: item?.material || null,
+      dimensions: item?.dimensions || null,
       price: item?.price
     }));
 

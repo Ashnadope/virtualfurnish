@@ -26,16 +26,15 @@ export default async function ProductManagementPage() {
     name: product.name,
     sku: product.sku,
     category: product.category,
-    price: product.basePrice,
-    stock: product.stockQuantity || product.variants?.reduce((total, v) => total + (v.stockQuantity || 0), 0) || 0,
+    price: product.variants?.length > 0
+      ? Math.min(...product.variants.map(v => parseFloat(v.price || 0)))
+      : (product.basePrice ?? 0),
+    stock: product.variants?.reduce((total, v) => total + (v.stockQuantity || 0), 0) || 0,
     status: product.isActive ? 'active' : 'inactive',
     description: product.description,
-    image: product.imageUrl,
+    image: product.variants?.[0]?.imageUrl || product.imageUrl || null,
     imageAlt: product.imageAlt,
-    dimensions: product.dimensions,
-    material: product.material,
-    weight: product.weight,
-    color: product.color,
+    brand: product.brand,
     variants: product.variants || []
   }));
 
