@@ -332,7 +332,7 @@ export const productService = {
       };
     } catch (error) {
       console.error('Error creating product:', error);
-      return { data: null, error: error?.message };
+      return { data: null, error: error?.message || String(error) || 'Unknown error creating product' };
     }
   },
 
@@ -461,7 +461,7 @@ export const productService = {
       };
     } catch (error) {
       console.error('Error updating product:', error);
-      return { data: null, error: error?.message };
+      return { data: null, error: error?.message || String(error) || 'Unknown error updating product' };
     }
   },
 

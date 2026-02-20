@@ -42,7 +42,7 @@ export default function ProductCard({ product }) {
 
   return (
     <div 
-      className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300 cursor-pointer"
+      className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300 cursor-pointer flex flex-col"
       onClick={handleCardClick}
     >
       {/* Product Image */}
@@ -79,7 +79,7 @@ export default function ProductCard({ product }) {
         </div>
       </div>
       {/* Product Details */}
-      <div className="p-4">
+      <div className="p-4 flex flex-col flex-1">
         {/* Brand */}
         {product?.brand && (
           <p className="text-sm text-gray-500 mb-1">
@@ -98,6 +98,9 @@ export default function ProductCard({ product }) {
             {product?.description}
           </p>
         )}
+
+        {/* Spacer — pushes everything below to the bottom */}
+        <div className="flex-1" />
 
         {/* Variants Info */}
         {uniqueColors.length > 0 && (

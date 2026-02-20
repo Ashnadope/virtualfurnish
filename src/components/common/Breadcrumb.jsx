@@ -15,6 +15,9 @@ export default function Breadcrumb() {
     'admin-dashboard': 'Dashboard',
     'product-management': 'Products',
     'analytics-dashboard': 'Analytics',
+    'furniture-catalog': 'Furniture Catalog',
+    'order-history': 'Order History',
+    'my-designs': 'My Designs',
     'login': 'Login',
   };
 

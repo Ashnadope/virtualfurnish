@@ -165,9 +165,10 @@ export default function ProductFormModal({ isOpen, onClose, onSave, product }) {
 
   const handleSubmit = async (e) => {
     e?.preventDefault();
-    if (!validate()) return;
 
     try {
+      if (!validate()) return;
+
       setUploading(true);
       const supabase = createClient();
       const uploadedVariants = [];
@@ -194,7 +195,7 @@ export default function ProductFormModal({ isOpen, onClose, onSave, product }) {
       console.error('Error saving product:', err);
       const msg = err?.name === 'AbortError'
         ? 'Upload timed out. Check your connection and try again.'
-        : err?.message || 'Failed to save product';
+        : err?.message || String(err) || 'Failed to save product';
       setErrors(prev => ({ ...prev, submit: msg }));
     } finally {
       setUploading(false);
@@ -433,7 +434,7 @@ export default function ProductFormModal({ isOpen, onClose, onSave, product }) {
 
             {/* Footer Buttons */}
             <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
-              <button type="button" onClick={onClose} disabled={uploading} className="px-6 py-2 border border-border rounded-md font-body text-sm font-medium text-foreground hover:bg-muted transition-fast disabled:opacity-50">
+              <button type="button" onClick={onClose} className="px-6 py-2 border border-border rounded-md font-body text-sm font-medium text-foreground hover:bg-muted transition-fast">
                 Cancel
               </button>
               <button type="submit" disabled={uploading} className="px-6 py-2 bg-primary text-primary-foreground rounded-md font-body text-sm font-medium hover:bg-primary/90 transition-fast disabled:opacity-50 flex items-center gap-2">

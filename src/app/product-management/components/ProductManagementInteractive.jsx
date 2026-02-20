@@ -75,20 +75,14 @@ export default function ProductManagementInteractive({ initialProducts }) {
       if (editingProduct) {
         // Update existing product
         const { data, error } = await productService.updateProduct(productData?.id, productData);
-        if (error) {
-          console.error('Error updating product:', error);
-          throw new Error(error);
-        }
+        if (error) throw new Error(typeof error === 'string' ? error : JSON.stringify(error));
         setProducts(prev =>
           prev?.map(p => (p?.id === productData?.id ? { ...p, ...data } : p))
         );
       } else {
         // Create new product
         const { data, error } = await productService.createProduct(productData);
-        if (error) {
-          console.error('Error creating product:', error);
-          throw new Error(error);
-        }
+        if (error) throw new Error(typeof error === 'string' ? error : JSON.stringify(error));
         setProducts(prev => [...prev, data]);
       }
       setIsFormModalOpen(false);

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { productService } from '../../../services/product.service';
 import Header from '../../../components/common/Header';
+import Breadcrumb from '../../../components/common/Breadcrumb';
 import ProductCard from './ProductCard';
 import CatalogFilters from './CatalogFilters';
 import SearchBar from './SearchBar';
@@ -157,13 +158,16 @@ export default function CatalogInteractive({ initialProducts = [] }) {
     <div className="min-h-screen bg-gray-50">
       <Header />
       
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8 pt-20">
+        {/* Breadcrumb */}
+        <Breadcrumb />
+
         {/* Page Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
+        <div className="mt-4 mb-8">
+          <h1 className="font-heading text-3xl font-bold text-foreground mb-1">
             Furniture Catalog
           </h1>
-          <p className="text-gray-600">
+          <p className="font-body text-muted-foreground">
             Browse our complete collection of quality furniture
           </p>
         </div>
