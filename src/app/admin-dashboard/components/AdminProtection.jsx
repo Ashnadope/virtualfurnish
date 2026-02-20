@@ -6,18 +6,17 @@ import { useAuth } from '@/contexts/AuthContext';
 
 export default function AdminProtection({ children }) {
   const router = useRouter();
-  const { user, userRole, loading } = useAuth();
+  const { user, userRole, loading, isHydrated } = useAuth();
 
   useEffect(() => {
-    // Only check after loading is complete
-    if (!loading) {
-      if (!user || userRole !== 'admin') {
-        router.push('/login');
-      }
+    if (isHydrated && !loading && (!user || userRole !== 'admin')) {
+      router.push('/login');
     }
-  }, [loading, user, userRole, router]);
+  }, [isHydrated, loading, user, userRole, router]);
 
-  if (loading) {
+  // Only show the spinner before the very first auth check completes.
+  // Token refreshes on tab focus must NOT unmount the admin content.
+  if (!isHydrated && loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">

@@ -18,11 +18,13 @@ export default function CartInteractive() {
   const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
-    loadCartItems();
+    loadCartItems(true);
   }, []);
 
-  const loadCartItems = async () => {
-    setLoading(true);
+  // initialLoad = true  → show full-page spinner (first mount, no items yet)
+  // updating = true     → keep items visible, block interactions (quantity/remove/clear)
+  const loadCartItems = async (isInitialLoad = false) => {
+    if (isInitialLoad) setLoading(true);
     setError(null);
     
     const { data, error: fetchError } = await cartService?.getCartItems();
@@ -44,7 +46,7 @@ export default function CartInteractive() {
     if (updateError) {
       setError(updateError);
     } else {
-      await loadCartItems();
+      await loadCartItems(false);
     }
     
     setUpdating(false);
@@ -58,7 +60,7 @@ export default function CartInteractive() {
     if (removeError) {
       setError(removeError);
     } else {
-      await loadCartItems();
+      await loadCartItems(false);
     }
     
     setUpdating(false);
@@ -76,7 +78,7 @@ export default function CartInteractive() {
     if (clearError) {
       setError(clearError);
     } else {
-      await loadCartItems();
+      await loadCartItems(false);
     }
     
     setUpdating(false);

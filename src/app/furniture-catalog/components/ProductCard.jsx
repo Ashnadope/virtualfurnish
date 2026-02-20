@@ -25,7 +25,7 @@ export default function ProductCard({ product }) {
 
   const uniqueColors = [...new Set(activeVariants.map(v => v?.color).filter(Boolean))];
 
-  const cardImage = firstVariant?.imageUrl || product?.imageUrl || null;
+  const cardImage = firstVariant?.imageUrl || null;
 
   const handleCardClick = () => {
     router?.push(`/product/${product?.id}`);

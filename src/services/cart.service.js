@@ -37,11 +37,11 @@ export const cartService = {
           product_variants (
             id,
             name,
-            size,
             color,
             price,
             stock_quantity,
-            sku
+            sku,
+            image_url
           )
         `)?.eq('user_id', user?.id)?.order('created_at', { ascending: false });
 

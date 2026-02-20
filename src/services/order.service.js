@@ -47,6 +47,10 @@ export const orderService = {
               name,
               image_url,
               category
+            ),
+            product_variants (
+              id,
+              image_url
             )
           ),
           payment_transactions (
@@ -108,7 +112,7 @@ export const orderService = {
           price: parseFloat(item?.price || 0),
           total: parseFloat(item?.total || 0),
           productId: item?.product_id,
-          imageUrl: item?.products?.image_url,
+          imageUrl: item?.product_variants?.image_url || item?.products?.image_url,
           category: item?.products?.category
         })) || [],
         transactions: order?.payment_transactions?.map(txn => ({
@@ -168,6 +172,10 @@ export const orderService = {
               image_url,
               description,
               category
+            ),
+            product_variants (
+              id,
+              image_url
             )
           ),
           payment_transactions (
@@ -210,7 +218,7 @@ export const orderService = {
           price: parseFloat(item?.price || 0),
           total: parseFloat(item?.total || 0),
           productId: item?.product_id,
-          imageUrl: item?.products?.image_url,
+          imageUrl: item?.product_variants?.image_url || item?.products?.image_url,
           description: item?.products?.description,
           category: item?.products?.category
         })) || [],

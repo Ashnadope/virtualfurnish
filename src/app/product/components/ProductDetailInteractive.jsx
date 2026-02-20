@@ -5,14 +5,26 @@ import { useRouter } from 'next/navigation';
 import AppImage from '@/components/ui/AppImage';
 import Icon from '@/components/ui/AppIcon';
 import { cartService } from '@/services/cart.service';
+import { wishlistService } from '@/services/wishlist.service';
+import { createClient } from '@/lib/supabase/client';
 
 export default function ProductDetailInteractive({ product }) {
   const router = useRouter();
   const [selectedVariant, setSelectedVariant] = useState(product?.variants?.[0]);
   const [quantity, setQuantity] = useState(1);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [isAddingToWishlist, setIsAddingToWishlist] = useState(false);
+  const [wishlistDone, setWishlistDone] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [cartMessage, setCartMessage] = useState(null);
+
+  const maxQty = selectedVariant?.stockQuantity ?? 99;
+
+  const handleSelectVariant = (variant) => {
+    setSelectedVariant(variant);
+    setImageError(false);
+    setQuantity(prev => Math.min(prev, variant?.stockQuantity || 1));
+  };
 
   const lowestPrice = product?.variants?.length > 0
     ? Math.min(...product?.variants?.map(v => parseFloat(v?.price || product?.basePrice || 0)))
@@ -63,6 +75,25 @@ export default function ProductDetailInteractive({ product }) {
     router.push('/cart');
   };
 
+  const handleAddToWishlist = async () => {
+    setIsAddingToWishlist(true);
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push('/login');
+        return;
+      }
+      await wishlistService.addToWishlist(user.id, product?.id);
+      setWishlistDone(true);
+      setTimeout(() => setWishlistDone(false), 3000);
+    } catch (err) {
+      console.error('Error adding to wishlist:', err);
+    } finally {
+      setIsAddingToWishlist(false);
+    }
+  };
+
   const colorVariants = product?.variants?.filter(v => v?.color);
   const uniqueColors = [...new Set(colorVariants?.map(v => v?.color)?.filter(Boolean))];
 
@@ -80,20 +111,52 @@ export default function ProductDetailInteractive({ product }) {
       {/* Product Content */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* Product Image */}
-        <div className="bg-surface rounded-lg border border-border overflow-hidden">
-          {!imageError && (selectedVariant?.imageUrl || product?.imageUrl) ? (
-            <AppImage
-              src={selectedVariant?.imageUrl || product?.imageUrl}
-              alt={`${product?.name}${selectedVariant?.color ? ` - ${selectedVariant.color}` : ''}`}
-              className="w-full h-auto object-cover aspect-square"
-              onError={() => setImageError(true)}
-            />
-          ) : (
-            <div className="w-full aspect-square flex items-center justify-center bg-muted">
-              <div className="text-center">
-                <Icon name="PhotoIcon" size={48} className="text-muted-foreground mx-auto mb-2" />
-                <p className="text-muted-foreground">No Image Available</p>
+        <div className="space-y-3">
+          <div className="bg-surface rounded-lg border border-border overflow-hidden">
+            {!imageError && selectedVariant?.imageUrl ? (
+              <AppImage
+                key={selectedVariant?.id}
+                src={selectedVariant?.imageUrl}
+                alt={`${product?.name}${selectedVariant?.color ? ` - ${selectedVariant.color}` : ''}`}
+                className="w-full h-auto object-cover aspect-square animate-fade-in"
+                onError={() => setImageError(true)}
+              />
+            ) : (
+              <div className="w-full aspect-square flex items-center justify-center bg-muted">
+                <div className="text-center">
+                  <Icon name="PhotoIcon" size={48} className="text-muted-foreground mx-auto mb-2" />
+                  <p className="text-muted-foreground">No Image Available</p>
+                </div>
               </div>
+            )}
+          </div>
+          {/* Variant thumbnail strip */}
+          {product?.variants?.length > 1 && (
+            <div className="flex gap-2 flex-wrap">
+              {product.variants.map((variant) => (
+                <button
+                  key={variant.id}
+                  onClick={() => handleSelectVariant(variant)}
+                  title={variant.color}
+                  className={`w-14 h-14 rounded-md overflow-hidden border-2 transition-all flex-shrink-0 ${
+                    selectedVariant?.id === variant.id
+                      ? 'border-primary ring-2 ring-primary/30'
+                      : 'border-border hover:border-primary/50'
+                  }`}
+                >
+                  {variant.imageUrl ? (
+                    <AppImage
+                      src={variant.imageUrl}
+                      alt={variant.color || 'Variant'}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-muted flex items-center justify-center">
+                      <Icon name="PhotoIcon" size={16} className="text-muted-foreground" />
+                    </div>
+                  )}
+                </button>
+              ))}
             </div>
           )}
         </div>
@@ -131,25 +194,35 @@ export default function ProductDetailInteractive({ product }) {
                     Color: <span className="text-primary">{selectedVariant?.color || 'Select'}</span>
                   </label>
                   <div className="flex flex-wrap gap-3">
-                    {uniqueColors?.map((color) => (
-                      <button
-                        key={color}
-                        onClick={() => {
-                          const variant = product?.variants?.find(v => v?.color === color);
-                          if (variant) {
-                            setSelectedVariant(variant);
-                            setImageError(false);
-                          }
-                        }}
-                        className={`px-4 py-2 rounded-lg border-2 transition-all text-sm font-medium ${
-                          selectedVariant?.color === color
-                            ? 'border-primary bg-primary text-primary-foreground'
-                            : 'border-border text-foreground hover:border-primary'
-                        }`}
-                      >
-                        {color}
-                      </button>
-                    ))}
+                    {uniqueColors?.map((color) => {
+                      const variant = product?.variants?.find(v => v?.color === color);
+                      const isSelected = selectedVariant?.color === color;
+                      return (
+                        <button
+                          key={color}
+                          onClick={() => { if (variant) handleSelectVariant(variant); }}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all text-sm font-medium ${
+                            isSelected
+                              ? 'border-primary bg-primary/5'
+                              : 'border-border text-foreground hover:border-primary'
+                          }`}
+                        >
+                          {variant?.imageUrl && (
+                            <div className="w-7 h-7 rounded overflow-hidden flex-shrink-0 border border-border">
+                              <AppImage
+                                src={variant.imageUrl}
+                                alt={color}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          )}
+                          <span className={isSelected ? 'text-primary' : ''}>{color}</span>
+                          {(variant?.stockQuantity ?? 0) === 0 && (
+                            <span className="text-xs text-error">(out)</span>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -178,24 +251,26 @@ export default function ProductDetailInteractive({ product }) {
                 </div>
               )}
 
-              {/* Stock Info */}
-              {selectedVariant?.stockQuantity && (
-                <p className={`text-sm font-medium ${
-                  selectedVariant?.stockQuantity > 0 
-                    ? 'text-green-600' 
-                    : 'text-red-600'
-                }`}>
-                  {selectedVariant?.stockQuantity > 0 
-                    ? `${selectedVariant?.stockQuantity} in stock`
-                    : 'Out of stock'
-                  }
-                </p>
-              )}
             </div>
           )}
 
           {/* Quantity Selector and Add to Cart */}
           <div className="space-y-4 pt-6">
+            {/* Stock Info (always shown) */}
+            {selectedVariant?.stockQuantity != null && (
+              <p className={`text-sm font-medium ${
+                selectedVariant.stockQuantity > 10
+                  ? 'text-success'
+                  : selectedVariant.stockQuantity > 0
+                  ? 'text-warning'
+                  : 'text-error'
+              }`}>
+                {selectedVariant.stockQuantity > 0
+                  ? `${selectedVariant.stockQuantity} in stock`
+                  : 'Out of stock'
+                }
+              </p>
+            )}
             {/* Quantity */}
             <div className="flex items-center gap-4">
               <label className="text-sm font-semibold text-foreground">Quantity:</label>
@@ -203,26 +278,30 @@ export default function ProductDetailInteractive({ product }) {
                 <button
                   onClick={() => setQuantity(Math.max(1, quantity - 1))}
                   className="px-3 py-2 text-foreground hover:bg-muted transition-colors"
-                  disabled={isAddingToCart}
+                  disabled={isAddingToCart || quantity <= 1}
                 >
                   <Icon name="MinusIcon" size={16} />
                 </button>
                 <input
                   type="number"
                   min="1"
+                  max={maxQty}
                   value={quantity}
-                  onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                  onChange={(e) => setQuantity(Math.min(maxQty, Math.max(1, parseInt(e.target.value) || 1)))}
                   className="w-16 px-3 py-2 text-center bg-background border-l border-r border-border text-foreground focus:outline-none"
                   disabled={isAddingToCart}
                 />
                 <button
-                  onClick={() => setQuantity(quantity + 1)}
+                  onClick={() => setQuantity(Math.min(maxQty, quantity + 1))}
                   className="px-3 py-2 text-foreground hover:bg-muted transition-colors"
-                  disabled={isAddingToCart}
+                  disabled={isAddingToCart || quantity >= maxQty}
                 >
                   <Icon name="PlusIcon" size={16} />
                 </button>
               </div>
+              {maxQty > 0 && (
+                <span className="text-xs text-muted-foreground">max {maxQty}</span>
+              )}
             </div>
 
             {/* Cart Message */}
@@ -237,7 +316,7 @@ export default function ProductDetailInteractive({ product }) {
             )}
 
             {/* Action Buttons */}
-            <div className="flex gap-4 pt-4">
+            <div className="flex gap-3 pt-4">
               <button
                 onClick={handleAddToCart}
                 disabled={isAddingToCart || (selectedVariant?.stockQuantity === 0)}
@@ -254,6 +333,24 @@ export default function ProductDetailInteractive({ product }) {
                     Add to Cart
                   </>
                 )}
+              </button>
+              <button
+                onClick={handleAddToWishlist}
+                disabled={isAddingToWishlist}
+                title={wishlistDone ? 'Added to wishlist!' : 'Add to wishlist'}
+                className={`px-4 py-3 rounded-lg border-2 transition-all flex items-center justify-center gap-2 font-semibold text-sm disabled:opacity-50 ${
+                  wishlistDone
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border text-foreground hover:border-primary hover:text-primary'
+                }`}
+              >
+                <Icon
+                  name={wishlistDone ? 'HeartIcon' : 'HeartIcon'}
+                  size={20}
+                  variant={wishlistDone ? 'solid' : 'outline'}
+                  className={wishlistDone ? 'text-primary' : ''}
+                />
+                {wishlistDone ? 'Wishlisted' : 'Wishlist'}
               </button>
               {cartMessage?.type === 'success' && (
                 <button

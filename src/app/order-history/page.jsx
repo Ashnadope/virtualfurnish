@@ -17,7 +17,7 @@ import ErrorMessage from './components/ErrorMessage';
 
 export default function OrderHistoryPage() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isHydrated } = useAuth();
   const [orders, setOrders] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -70,31 +70,27 @@ export default function OrderHistoryPage() {
   // Load orders on mount
   useEffect(() => {
     let isMounted = true;
-    console.log('[OrderHistory] useEffect triggered', { authLoading, userId: user?.id });
-    
-    if (authLoading) {
-      console.log('[OrderHistory] Still auth loading, waiting...');
+
+    // Wait for the very first auth check to complete.
+    // Do NOT depend on authLoading — it flips on every token refresh
+    // (e.g. tab focus) which would re-run this effect and show the
+    // full-page spinner on already-loaded data.
+    if (!isHydrated) {
       return;
     }
 
     if (!user?.id) {
-      console.log('[OrderHistory] No user, redirecting to login');
       router.push('/login');
       return;
     }
 
     const loadOrders = async () => {
-      console.log('[OrderHistory] loadOrders called', { userId: user?.id });
-      
       if (!isMounted) return;
       
       try {
         setLoading(true);
         setError('');
-        
-        console.log('[OrderHistory] Fetching orders from Supabase...');
         const data = await orderService?.getUserOrders(user?.id);
-        console.log('[OrderHistory] Orders fetched:', data?.length);
         
         if (isMounted) {
           setOrders(data || []);
@@ -130,20 +126,18 @@ export default function OrderHistoryPage() {
           setOrders([]);
         }
       } finally {
-        console.log('[OrderHistory] loadOrders finished, setting loading=false');
         if (isMounted) {
           setLoading(false);
         }
       }
     };
 
-    console.log('[OrderHistory] Loading orders and stats...');
     loadOrders();
 
     return () => {
       isMounted = false;
     };
-  }, [user?.id, authLoading, router, retryKey]);
+  }, [user?.id, isHydrated, router, retryKey]);
 
   const handleRetry = () => {
     setError('');

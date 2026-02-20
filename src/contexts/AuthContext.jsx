@@ -214,6 +214,7 @@ export function AuthProvider({ children }) {
     userProfile,
     userRole,
     loading,
+    isHydrated,
     isAuthenticated: !!user,
     signUp: async (email, password, metadata = {}) => {
       try {

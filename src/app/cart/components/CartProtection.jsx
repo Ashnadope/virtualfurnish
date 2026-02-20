@@ -6,18 +6,19 @@ import { useAuth } from '@/contexts/AuthContext';
 
 export default function CartProtection({ children }) {
   const router = useRouter();
-  const { user, loading } = useAuth();
+  const { user, loading, isHydrated } = useAuth();
 
   useEffect(() => {
-    // Only check after loading is complete
-    if (!loading) {
-      if (!user) {
-        router.push('/login');
-      }
+    // Only redirect after auth has fully initialized
+    if (isHydrated && !loading && !user) {
+      router.push('/login');
     }
-  }, [loading, user, router]);
+  }, [isHydrated, loading, user, router]);
 
-  if (loading) {
+  // Only show the full-page loading screen before the very first auth check.
+  // After hydration, token refreshes must NOT unmount the cart — doing so
+  // causes the cart to get stuck in an infinite loading state on tab focus.
+  if (!isHydrated && loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">

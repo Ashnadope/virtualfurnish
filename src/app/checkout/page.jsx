@@ -419,9 +419,9 @@ export default function CheckoutPage() {
                   {cartItems?.map((item) => (
                     <div key={item?.id} className="flex gap-3">
                       <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                        {item?.products?.image_url ? (
+                        {(item?.product_variants?.image_url || item?.products?.image_url) ? (
                           <img 
-                            src={item?.products?.image_url} 
+                            src={item?.product_variants?.image_url || item?.products?.image_url} 
                             alt={item?.products?.name || 'Product'}
                             className="w-full h-full object-cover"
                           />
@@ -486,9 +486,9 @@ export default function CheckoutPage() {
                     {cartItems?.map((item) => (
                       <div key={item?.id} className="flex gap-4 pb-4 border-b border-gray-200 last:border-b-0">
                         <div className="w-24 h-24 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                          {item?.products?.image_url ? (
+                          {(item?.product_variants?.image_url || item?.products?.image_url) ? (
                             <img 
-                              src={item?.products?.image_url} 
+                              src={item?.product_variants?.image_url || item?.products?.image_url} 
                               alt={item?.products?.name || 'Product'}
                               className="w-full h-full object-cover"
                             />

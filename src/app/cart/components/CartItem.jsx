@@ -28,7 +28,7 @@ export default function CartItem({ item, onUpdateQuantity, onRemove, disabled })
         {/* Product Image */}
         <div className="flex-shrink-0 w-24 h-24 bg-muted rounded-md overflow-hidden">
           <AppImage
-            src={product?.image_url}
+            src={variant?.image_url || product?.image_url}
             alt={`${product?.name} - ${variant?.name || 'Product image'}`}
             width={96}
             height={96}
@@ -56,11 +56,7 @@ export default function CartItem({ item, onUpdateQuantity, onRemove, disabled })
                       {variant?.color}
                     </span>
                   )}
-                  {variant?.size && (
-                    <span className="inline-flex items-center px-2 py-1 bg-muted text-muted-foreground text-xs rounded">
-                      {variant?.size}
-                    </span>
-                  )}
+
                 </div>
               )}
 

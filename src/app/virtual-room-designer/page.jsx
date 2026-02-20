@@ -32,8 +32,7 @@ export default async function VirtualRoomDesignerPage() {
         ? `${product.name} (${variant.color})`
         : product.name,
       category: product.category,
-      // Prefer variant image; fall back to product-level image
-      image: variant.imageUrl || product.imageUrl || null,
+      image: variant.imageUrl || null,
       alt: `${product.name}${variant.color ? ` - ${variant.color}` : ''} | ${product.description || product.category}`,
       price: variant.price ?? product.basePrice,
       color: variant.color,

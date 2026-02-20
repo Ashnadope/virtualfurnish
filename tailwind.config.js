@@ -110,10 +110,15 @@ module.exports = {
           '0%, 100%': { opacity: '0.4' },
           '50%': { opacity: '0.8' },
         },
+        fadeIn: {
+          from: { opacity: '0' },
+          to: { opacity: '1' },
+        },
       },
       animation: {
         'slide-in': 'slideIn 300ms ease-out',
         'pulse-subtle': 'pulseSubtle 1.5s ease-in-out infinite',
+        'fade-in': 'fadeIn 250ms ease-in-out',
       },
       zIndex: {
         'sidebar': '100',
