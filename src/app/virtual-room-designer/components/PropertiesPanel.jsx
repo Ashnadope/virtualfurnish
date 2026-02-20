@@ -35,6 +35,7 @@ export default function PropertiesPanel({ selectedFurniture, onAddToCart, onClos
       <div className="flex-1 overflow-y-auto p-4">
         <div className="aspect-square bg-muted rounded-lg overflow-hidden mb-4">
           <AppImage
+            key={selectedFurniture?.id ?? selectedFurniture?.image}
             src={selectedFurniture?.image}
             alt={selectedFurniture?.alt}
             className="w-full h-full object-cover"

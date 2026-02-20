@@ -17,8 +17,17 @@ const CanvasArea = forwardRef(function CanvasArea({
   onFurnitureDelete,
   onAddFurniture,
   showAISuggestions,
-  aiSuggestionType
+  aiSuggestionType,
+  colorPalette
 }, ref) {
+  const [colorPaletteDismissed, setColorPaletteDismissed] = useState(false);
+  // Reset dismissed state when the overlay is re-triggered
+  useEffect(() => {
+    if (showAISuggestions && aiSuggestionType === 'color') {
+      setColorPaletteDismissed(false);
+    }
+  }, [showAISuggestions, aiSuggestionType]);
+
   const [zoom, setZoom] = useState(100);
   const [isPanning, setIsPanning] = useState(false);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
@@ -421,35 +430,35 @@ const CanvasArea = forwardRef(function CanvasArea({
                 </div>
               )}
               
-              {showAISuggestions && (
-                <div className="absolute inset-0 pointer-events-none">
-                  {aiSuggestionType === 'layout' && (
-                    <>
-                      <div className="absolute top-[20%] left-[15%] w-32 h-24 border-2 border-dashed border-accent bg-accent/10 rounded-md flex items-center justify-center">
-                        <span className="font-body text-xs text-accent-foreground bg-accent px-2 py-1 rounded">Sofa</span>
+              {showAISuggestions && aiSuggestionType === 'color' && !colorPaletteDismissed && colorPalette && (
+                    <div className="absolute top-4 right-4 bg-surface/95 border border-border rounded-lg shadow-elevated pointer-events-auto" style={{ minWidth: '180px' }}>
+                      <div className="flex items-center justify-between px-3 pt-3 pb-2">
+                        <p className="font-heading font-semibold text-sm text-foreground">Recommended Palette</p>
+                        <button
+                          onClick={() => setColorPaletteDismissed(true)}
+                          className="text-muted-foreground hover:text-foreground transition-fast ml-2"
+                          aria-label="Dismiss color palette"
+                        >
+                          <Icon name="XMarkIcon" size={16} variant="solid" />
+                        </button>
                       </div>
-                      <div className="absolute top-[20%] right-[15%] w-20 h-20 border-2 border-dashed border-accent bg-accent/10 rounded-md flex items-center justify-center">
-                        <span className="font-body text-xs text-accent-foreground bg-accent px-2 py-1 rounded">Table</span>
-                      </div>
-                      <div className="absolute bottom-[25%] left-[30%] w-24 h-16 border-2 border-dashed border-accent bg-accent/10 rounded-md flex items-center justify-center">
-                        <span className="font-body text-xs text-accent-foreground bg-accent px-2 py-1 rounded">Chair</span>
-                      </div>
-                    </>
-                  )}
-                  
-                  {aiSuggestionType === 'color' && (
-                    <div className="absolute top-4 right-4 bg-surface/95 p-4 rounded-lg shadow-elevated">
-                      <p className="font-heading font-semibold text-sm text-foreground mb-2">Recommended Colors</p>
-                      <div className="flex gap-2">
-                        <div className="w-8 h-8 rounded-md bg-[#8B7355]" title="Warm Brown" />
-                        <div className="w-8 h-8 rounded-md bg-[#E8DCC4]" title="Cream" />
-                        <div className="w-8 h-8 rounded-md bg-[#4A5D4F]" title="Forest Green" />
-                        <div className="w-8 h-8 rounded-md bg-[#D4A574]" title="Golden Oak" />
+                      <div className="px-3 pb-3 flex flex-col gap-2">
+                        {Object.entries(colorPalette).map(([name, hexCode]) => (
+                          <div key={name} className="flex items-center gap-2">
+                            <div
+                              className="w-8 h-8 rounded-md border border-border flex-shrink-0"
+                              style={{ backgroundColor: hexCode }}
+                              title={hexCode}
+                            />
+                            <div>
+                              <p className="font-body text-xs font-medium text-foreground capitalize">{name}</p>
+                              <p className="font-body text-xs text-muted-foreground">{hexCode}</p>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
-                </div>
-              )}
 
               {placedFurniture?.map((furniture) => (
                 <div
@@ -613,7 +622,8 @@ CanvasArea.propTypes = {
   onFurnitureDelete: PropTypes?.func?.isRequired,
   onAddFurniture: PropTypes?.func?.isRequired,
   showAISuggestions: PropTypes?.bool?.isRequired,
-  aiSuggestionType: PropTypes?.string
+  aiSuggestionType: PropTypes?.string,
+  colorPalette: PropTypes?.object
 };
 
 export default CanvasArea;

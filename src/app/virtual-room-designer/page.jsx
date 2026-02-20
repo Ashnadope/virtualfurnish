@@ -20,7 +20,10 @@ export default async function VirtualRoomDesignerPage() {
   // Transform products → one furniture entry per active variant
   // This lets the room designer show each color/variant separately
   const furnitureData = products.flatMap((product) => {
-    const activeVariants = (product.variants || []).filter(v => v?.isActive !== false);
+    // Only variants that are active AND have stock
+    const activeVariants = (product.variants || []).filter(
+      v => v?.isActive !== false && (parseInt(v?.stockQuantity) || 0) > 0
+    );
 
     if (activeVariants.length === 0) return [];
 

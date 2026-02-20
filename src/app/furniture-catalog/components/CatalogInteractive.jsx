@@ -72,6 +72,14 @@ export default function CatalogInteractive({ initialProducts = [] }) {
   const applyFilters = () => {
     let filtered = [...products];
 
+    // Hide products where every active variant is out of stock
+    filtered = filtered.filter(product => {
+      const activeVariants = (product?.variants || []).filter(v => v?.isActive !== false);
+      // If no variant data, fall back to product-level stock_quantity
+      if (activeVariants.length === 0) return (product?.stock_quantity ?? 0) > 0;
+      return activeVariants.some(v => (parseInt(v?.stockQuantity) || 0) > 0);
+    });
+
     // Category filter
     if (selectedCategory !== 'all') {
       filtered = filtered?.filter(product => 
