@@ -9,10 +9,13 @@ export default function CartProtection({ children }) {
   const { user, loading } = useAuth();
 
   useEffect(() => {
-    if (!loading && !user) {
-      router.push('/login');
+    // Only check after loading is complete
+    if (!loading) {
+      if (!user) {
+        router.push('/login');
+      }
     }
-  }, [user, loading, router]);
+  }, [loading, user, router]);
 
   if (loading) {
     return (

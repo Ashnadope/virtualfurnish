@@ -9,10 +9,13 @@ export default function AdminProtection({ children }) {
   const { user, userRole, loading } = useAuth();
 
   useEffect(() => {
-    if (!loading && (!user || userRole !== 'admin')) {
-      router.push('/login');
+    // Only check after loading is complete
+    if (!loading) {
+      if (!user || userRole !== 'admin') {
+        router.push('/login');
+      }
     }
-  }, [user, userRole, loading, router]);
+  }, [loading, user, userRole, router]);
 
   if (loading) {
     return (

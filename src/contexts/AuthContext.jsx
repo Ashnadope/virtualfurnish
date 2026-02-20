@@ -66,12 +66,26 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let isMounted = true;
     let subscription;
+    let initTimeout;
 
     const initializeAuth = async () => {
       try {
-        // Get current session
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        // Get current session with timeout
+        const sessionPromise = supabase.auth.getSession();
         
+        // Set a 5-second timeout for session fetch
+        initTimeout = setTimeout(() => {
+          if (isMounted && loading) {
+            console.warn('Session fetch timeout, forcing loading state to false');
+            setLoading(false);
+          }
+        }, 5000);
+
+        const { data: { session }, error: sessionError } = await sessionPromise;
+        
+        // Clear timeout if completed
+        clearTimeout(initTimeout);
+
         // Log but don't throw on session error - it's not fatal
         if (sessionError) {
           console.warn('Session check error:', sessionError.message);
@@ -93,6 +107,7 @@ export function AuthProvider({ children }) {
         }
       } catch (error) {
         console.error('Auth initialization error:', error);
+        clearTimeout(initTimeout);
         if (isMounted) {
           setUser(null);
           setUserProfile(null);
@@ -151,10 +166,31 @@ export function AuthProvider({ children }) {
       }
     }).catch((error) => {
       console.error('Failed to initialize auth:', error);
+      clearTimeout(initTimeout);
+      if (isMounted) {
+        setLoading(false);
+      }
     });
+
+    // Handle page visibility change to reinitialize if needed
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && isMounted && loading) {
+        console.log('Page became visible while still loading, checking auth status');
+        // Force loading state to false after short delay
+        setTimeout(() => {
+          if (isMounted && loading) {
+            setLoading(false);
+          }
+        }, 1000);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       isMounted = false;
+      clearTimeout(initTimeout);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       // Properly unsubscribe from listener
       if (subscription?.unsubscribe) {
         try {
