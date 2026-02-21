@@ -17,7 +17,7 @@ import ErrorMessage from './components/ErrorMessage';
 
 export default function OrderHistoryPage() {
   const router = useRouter();
-  const { user, loading: authLoading, isHydrated } = useAuth();
+  const { user, isHydrated } = useAuth();
   const [orders, setOrders] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -97,15 +97,13 @@ export default function OrderHistoryPage() {
           
           // Calculate stats from fetched orders
           if (data && data.length > 0) {
-            const totalOrders = data.length;
             const totalSpent = data.reduce((sum, order) => sum + parseFloat(order.totalAmount || 0), 0);
-            const pendingOrders = data.filter(o => o.status === 'Pending' || o.status === 'pending').length;
-            
             setStats({
-              totalOrders,
+              total: data.length,
+              delivered: data.filter(o => o.status?.toLowerCase() === 'delivered').length,
+              shipped: data.filter(o => o.status?.toLowerCase() === 'shipped').length,
+              processing: data.filter(o => o.status?.toLowerCase() === 'processing' || o.status?.toLowerCase() === 'pending').length,
               totalSpent,
-              pendingOrders,
-              averageOrderValue: totalOrders > 0 ? totalSpent / totalOrders : 0
             });
           } else {
             // If no orders, try to get stats from service

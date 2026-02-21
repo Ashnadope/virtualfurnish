@@ -125,6 +125,9 @@ export function AuthProvider({ children }) {
         // Skip initial session event - handled by getSession above
         if (event === 'INITIAL_SESSION') return;
 
+        // Skip token refreshes - they don't change the user, only re-render unnecessarily
+        if (event === 'TOKEN_REFRESHED') return;
+
         try {
           // Only set loading for actual auth changes, not token refreshes
           const shouldSetLoading = ['SIGNED_IN', 'SIGNED_OUT', 'USER_UPDATED'].includes(event);
@@ -172,25 +175,9 @@ export function AuthProvider({ children }) {
       }
     });
 
-    // Handle page visibility change to reinitialize if needed
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && isMounted && loading) {
-        console.log('Page became visible while still loading, checking auth status');
-        // Force loading state to false after short delay
-        setTimeout(() => {
-          if (isMounted && loading) {
-            setLoading(false);
-          }
-        }, 1000);
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
     return () => {
       isMounted = false;
       clearTimeout(initTimeout);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
       // Properly unsubscribe from listener
       if (subscription?.unsubscribe) {
         try {

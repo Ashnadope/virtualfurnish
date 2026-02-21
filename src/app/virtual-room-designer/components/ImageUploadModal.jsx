@@ -114,7 +114,7 @@ export default function ImageUploadModal({ isOpen, onClose, onUpload }) {
         });
 
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Upload timeout - check if room-uploads bucket exists and policies are applied')), 10000)
+        setTimeout(() => reject(new Error('Upload timeout - check if room-uploads bucket exists and policies are applied')), 30000)
       );
 
       const { data: uploadData, error: uploadError } = await Promise.race([

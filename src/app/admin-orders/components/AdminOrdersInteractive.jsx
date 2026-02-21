@@ -3,6 +3,7 @@
 import { useState, useEffect, Fragment } from 'react';
 import { orderService } from '@/services/order.service';
 import Icon from '@/components/ui/AppIcon';
+import { useAuth } from '@/contexts/AuthContext';
 
 const statusColors = {
   pending: 'bg-yellow-100 text-yellow-800',
@@ -21,6 +22,7 @@ const paymentStatusColors = {
 };
 
 export default function AdminOrdersInteractive() {
+  const { user, isHydrated } = useAuth();
   const [orders, setOrders] = useState([]);
   const [filteredOrders, setFilteredOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -30,8 +32,16 @@ export default function AdminOrdersInteractive() {
   const [expandedOrderId, setExpandedOrderId] = useState(null);
 
   useEffect(() => {
-    fetchAllOrders();
-  }, []);
+    // Wait until auth is fully resolved
+    if (!isHydrated) return;
+
+    if (user?.id) {
+      fetchAllOrders();
+    } else {
+      // Auth done, no user logged in
+      setLoading(false);
+    }
+  }, [user?.id, isHydrated]);
 
   useEffect(() => {
     applyFilters();
@@ -92,7 +102,16 @@ export default function AdminOrdersInteractive() {
   };
 
   if (loading) {
-    return null; // Page-level loading spinner handles this
+    return (
+      <div className="space-y-4 animate-pulse">
+        <div className="h-8 w-64 bg-muted rounded" />
+        <div className="h-4 w-48 bg-muted rounded" />
+        <div className="bg-surface rounded-lg border border-border p-4 h-20" />
+        {[...Array(5)].map((_, i) => (
+          <div key={i} className="bg-surface rounded-lg border border-border p-4 h-16" />
+        ))}
+      </div>
+    );
   }
 
   return (

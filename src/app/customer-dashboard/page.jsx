@@ -9,44 +9,27 @@ import { useAuth } from '@/contexts/AuthContext';
 import { orderService } from '@/services/order.service';
 import { roomDesignService } from '@/services/roomDesign.service';
 import { wishlistService } from '@/services/wishlist.service';
-import { createClient } from '@/lib/supabase/client';
 
 export default function CustomerDashboard() {
-  const { user } = useAuth();
+  const { user, isHydrated } = useAuth();
   const [orderCount, setOrderCount] = useState(0);
   const [wishlistCount, setWishlistCount] = useState(0);
   const [totalDesignsCount, setTotalDesignsCount] = useState(0);
-  const [userName, setUserName] = useState('Customer');
   const [recentDesigns, setRecentDesigns] = useState([]);
+  const [dataLoading, setDataLoading] = useState(true);
+
+  // Use name from AuthContext directly — it already has first_name from user_profiles
+  const userName = user?.name || user?.email?.split('@')?.[0] || 'Customer';
+
+  // If auth finishes with no user, stop the loading spinner
+  useEffect(() => {
+    if (isHydrated && !user?.id) {
+      setDataLoading(false);
+    }
+  }, [isHydrated, user?.id]);
 
   useEffect(() => {
     let isMounted = true;
-
-    const loadUserData = async () => {
-      try {
-        const supabase = createClient();
-        const { data, error } = await supabase
-          .from('user_profiles')
-          .select('first_name')
-          .eq('id', user.id)
-          .single();
-
-        if (error) {
-          console.error('Error loading user data:', error);
-          setUserName('Customer');
-          return;
-        }
-
-        if (data?.first_name) {
-          setUserName(data.first_name);
-        } else {
-          setUserName('Customer');
-        }
-      } catch (error) {
-        console.error('Error loading user data:', error);
-        setUserName('Customer');
-      }
-    };
 
     const loadOrderCount = async () => {
       try {
@@ -139,13 +122,14 @@ export default function CustomerDashboard() {
     const loadData = async () => {
       if (user?.id && isMounted) {
         try {
-          // Load data sequentially to avoid auth lock conflicts
-          await loadUserData();
-          if (isMounted) await loadOrderCount();
+          setDataLoading(true);
+          await loadOrderCount();
           if (isMounted) await loadWishlistCount();
           if (isMounted) await loadRecentDesigns();
         } catch (error) {
           console.error('Error loading dashboard data:', error);
+        } finally {
+          if (isMounted) setDataLoading(false);
         }
       }
     };
@@ -267,16 +251,26 @@ export default function CustomerDashboard() {
   return (
     <div className="min-h-screen bg-background">
       <Sidebar userRole="customer" />
-      <Header userRole="customer" userName={dashboardData?.userName} />
+      <Header userRole="customer" userName={userName} />
       <main className="pt-16">
         <div className="p-6 max-w-7xl mx-auto">
           <div className="mb-6">
             <Breadcrumb />
           </div>
-          
-          <CustomerDashboardInteractive initialData={dashboardData} />
+          {dataLoading ? (
+            <div className="space-y-4 animate-pulse">
+              <div className="h-32 bg-muted rounded-lg" />
+              <div className="grid grid-cols-3 gap-4">
+                <div className="h-24 bg-muted rounded-lg" />
+                <div className="h-24 bg-muted rounded-lg" />
+                <div className="h-24 bg-muted rounded-lg" />
+              </div>
+              <div className="h-64 bg-muted rounded-lg" />
+            </div>
+          ) : (
+            <CustomerDashboardInteractive initialData={dashboardData} />
+          )}
         </div>
       </main>
     </div>);
-
 }
