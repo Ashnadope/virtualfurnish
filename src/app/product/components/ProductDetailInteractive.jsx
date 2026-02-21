@@ -49,14 +49,14 @@ export default function ProductDetailInteractive({ product }) {
 
     setIsAddingToCart(true);
     try {
-      const { success, error } = await cartService.addToCart({
+      const { data, error } = await cartService.addToCart({
         productId: product?.id,
         variantId: selectedVariant?.id,
         quantity: parseInt(quantity),
         price: parseFloat(selectedVariant?.price || product?.basePrice)
       });
 
-      if (success) {
+      if (!error && data) {
         setCartMessage({ type: 'success', text: 'Added to cart successfully!' });
         setQuantity(1);
         setTimeout(() => setCartMessage(null), 3000);
