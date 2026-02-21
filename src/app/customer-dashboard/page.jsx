@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { orderService } from '@/services/order.service';
 import { roomDesignService } from '@/services/roomDesign.service';
 import { wishlistService } from '@/services/wishlist.service';
+import { createClient } from '@/lib/supabase/client';
 
 export default function CustomerDashboard() {
   const { user, isHydrated } = useAuth();
@@ -16,6 +17,8 @@ export default function CustomerDashboard() {
   const [wishlistCount, setWishlistCount] = useState(0);
   const [totalDesignsCount, setTotalDesignsCount] = useState(0);
   const [recentDesigns, setRecentDesigns] = useState([]);
+  const [recommendations, setRecommendations] = useState([]);
+  const [recentOrders, setRecentOrders] = useState([]);
   const [dataLoading, setDataLoading] = useState(true);
 
   // Use name from AuthContext directly — it already has first_name from user_profiles
@@ -31,49 +34,44 @@ export default function CustomerDashboard() {
   useEffect(() => {
     let isMounted = true;
 
-    const loadOrderCount = async () => {
+    const loadOrdersData = async () => {
       try {
         const orders = await orderService.getUserOrders(user.id);
-        setOrderCount(orders?.length || 0);
+        if (isMounted) setOrderCount(orders?.length || 0);
+        const statusMap = { delivered: 'Delivered', shipped: 'In Transit', processing: 'Processing', pending: 'Processing', packing: 'Processing' };
+        const recent = (orders || []).slice(0, 3).map(order => ({
+          orderNumber: order.orderNumber,
+          productName: order.items?.[0]?.name || 'Order',
+          status: statusMap[order.status] || 'Processing',
+          orderDate: new Date(order.createdAt).toLocaleDateString('en-PH'),
+          totalAmount: order.totalAmount
+        }));
+        if (isMounted) setRecentOrders(recent);
       } catch (error) {
-        console.error('Error loading order count:', error);
-        setOrderCount(0);
+        console.error('Error loading orders:', error);
+        if (isMounted) setOrderCount(0);
       }
     };
 
+    // Returns raw designs array for use in loadRecommendations
     const loadRecentDesigns = async () => {
       try {
         const { data, error } = await roomDesignService.getUserDesigns(user.id);
-        
-        if (error) {
-          console.error('Error loading designs:', error);
+        if (error || !data || data.length === 0) {
           setRecentDesigns([]);
-          return;
+          return [];
         }
-
-        if (!data || data.length === 0) {
-          setRecentDesigns([]);
-          return;
-        }
-
-        // Store total count before slicing
         setTotalDesignsCount(data.length);
-
-        // Get latest 3 designs with signed URLs
         const latest3 = data.slice(0, 3);
         const designsWithUrls = await Promise.all(
           latest3.map(async (design) => {
             try {
-              // Use render_url if available, otherwise fall back to room_image_url
               const imagePath = design.render_url || design.room_image_url;
-              
-              // Only get signed URL if we have an image path
               let signedUrl = null;
               if (imagePath) {
                 const result = await roomDesignService.getSignedUrl(imagePath);
                 signedUrl = result.signedUrl;
               }
-              
               return {
                 id: design.id,
                 name: design.name,
@@ -85,28 +83,110 @@ export default function CustomerDashboard() {
                 is_public: design.is_public,
                 share_token: design.share_token
               };
-            } catch (err) {
-              console.error('Error processing design:', design.id, err);
-              // Return design with null thumbnail on error
+            } catch {
               return {
-                id: design.id,
-                name: design.name,
-                thumbnail: null,
+                id: design.id, name: design.name, thumbnail: null,
                 alt: design.description || design.name,
                 date: new Date(design.updated_at).toLocaleDateString(),
                 itemCount: design.design_data?.furniture?.length || 0,
-                roomType: design.name,
-                is_public: design.is_public,
-                share_token: design.share_token
+                roomType: design.name, is_public: design.is_public, share_token: design.share_token
               };
             }
           })
         );
-        
         setRecentDesigns(designsWithUrls);
+        return data; // return all raw designs for recommendations
       } catch (error) {
         console.error('Error loading recent designs:', error);
         setRecentDesigns([]);
+        return [];
+      }
+    };
+
+    const loadRecommendations = async (allDesigns) => {
+      try {
+        const supabase = createClient();
+        const seenVariantIds = new Set();
+        const aiVariantIds = [];
+
+        // Collect unique variant IDs from AI recommendations across all designs
+        for (const design of allDesigns) {
+          const recs = design.design_data?.aiAnalysis?.furnitureRecommendations || [];
+          for (const rec of recs) {
+            if (rec.furnitureId && !seenVariantIds.has(rec.furnitureId)) {
+              seenVariantIds.add(rec.furnitureId);
+              aiVariantIds.push(rec.furnitureId);
+            }
+          }
+        }
+
+        const results = [];
+        const seenProductIds = new Set();
+
+        // Fetch AI-recommended variants first
+        if (aiVariantIds.length > 0) {
+          const { data: variants } = await supabase
+            .from('product_variants')
+            .select('id, image_url, price, stock_quantity, products(id, name, category, image_url, base_price)')
+            .in('id', aiVariantIds)
+            .gt('stock_quantity', 0);
+
+          if (variants) {
+            for (const v of variants) {
+              if (results.length >= 4) break;
+              if (!v.products?.id || seenProductIds.has(v.products.id)) continue;
+              seenProductIds.add(v.products.id);
+              results.push({
+                id: v.products.id,
+                variantId: v.id,
+                name: v.products.name,
+                category: v.products.category,
+                price: parseFloat(v.price || v.products.base_price || 0),
+                image: v.image_url || v.products.image_url,
+                alt: v.products.name,
+                rating: 0,
+                reviews: 0
+              });
+            }
+          }
+        }
+
+        // Fill remaining slots with recently added products
+        if (results.length < 4) {
+          const { data: recentProducts } = await supabase
+            .from('products')
+            .select('id, name, category, image_url, base_price, product_variants(id, price, image_url, stock_quantity)')
+            .eq('is_active', true)
+            .order('created_at', { ascending: false })
+            .limit(20);
+
+          if (recentProducts) {
+            for (const p of recentProducts) {
+              if (results.length >= 4) break;
+              if (seenProductIds.has(p.id)) continue;
+              // Only pick a variant that actually has stock
+              const inStockVariant = p.product_variants?.find(v => (v.stock_quantity || 0) > 0);
+              if (!inStockVariant) continue;
+              seenProductIds.add(p.id);
+              results.push({
+                id: p.id,
+                variantId: inStockVariant.id,
+                name: p.name,
+                category: p.category,
+                price: parseFloat(inStockVariant.price || p.base_price || 0),
+                image: inStockVariant.image_url || p.image_url,
+                alt: p.name,
+                rating: 0,
+                reviews: 0
+              });
+            }
+          }
+        }
+
+        return results;
+      } catch (error) {
+        console.error('Error loading recommendations:', error);
+        return [];
       }
     };
 
@@ -123,9 +203,15 @@ export default function CustomerDashboard() {
       if (user?.id && isMounted) {
         try {
           setDataLoading(true);
-          await loadOrderCount();
-          if (isMounted) await loadWishlistCount();
-          if (isMounted) await loadRecentDesigns();
+          const [rawDesigns] = await Promise.all([
+            loadRecentDesigns(),
+            loadOrdersData(),
+            loadWishlistCount(),
+          ]);
+          if (isMounted) {
+            const recs = await loadRecommendations(rawDesigns || []);
+            if (isMounted) setRecommendations(recs);
+          }
         } catch (error) {
           console.error('Error loading dashboard data:', error);
         } finally {
@@ -174,77 +260,9 @@ export default function CustomerDashboard() {
 
     recentDesigns: recentDesigns,
 
-    recommendations: [
-    {
-      id: 1,
-      name: "Modern Fabric Sofa - 3 Seater",
-      category: "Living Room",
-      price: 24999,
-      discountedPrice: 19999,
-      discount: 20,
-      image: "https://images.unsplash.com/photo-1634497885778-152eb6fd543d",
-      alt: "Three-seater modern fabric sofa in charcoal gray with clean lines and wooden legs",
-      rating: 4.5,
-      reviews: 128
-    },
-    {
-      id: 2,
-      name: "Solid Wood Coffee Table",
-      category: "Living Room",
-      price: 8999,
-      image: "https://img.rocket.new/generatedImages/rocket_gen_img_169f683f9-1764651057136.png",
-      alt: "Rectangular coffee table made of solid oak wood with natural finish and lower shelf",
-      rating: 4.8,
-      reviews: 95
-    },
-    {
-      id: 3,
-      name: "Queen Size Bed Frame",
-      category: "Bedroom",
-      price: 15999,
-      discountedPrice: 13599,
-      discount: 15,
-      image: "https://img.rocket.new/generatedImages/rocket_gen_img_19a59142e-1764752238242.png",
-      alt: "Queen-size bed frame with upholstered headboard in beige fabric and wooden slats",
-      rating: 4.6,
-      reviews: 76
-    },
-    {
-      id: 4,
-      name: "6-Seater Dining Set",
-      category: "Dining Room",
-      price: 32999,
-      image: "https://images.unsplash.com/photo-1708716069493-d40f14738e03",
-      alt: "Complete dining set with rectangular wooden table and six cushioned chairs in dark brown finish",
-      rating: 4.7,
-      reviews: 54
-    }],
+    recommendations: recommendations,
 
-    recentOrders: [
-    {
-      orderNumber: "ORD-2025-1234",
-      productName: "L-Shaped Corner Sofa",
-      status: "In Transit",
-      orderDate: "02/12/2025",
-      estimatedDelivery: "08/12/2025",
-      totalAmount: 35999
-    },
-    {
-      orderNumber: "ORD-2025-1189",
-      productName: "Wooden Bookshelf",
-      status: "Delivered",
-      orderDate: "28/11/2025",
-      estimatedDelivery: "04/12/2025",
-      totalAmount: 6499
-    },
-    {
-      orderNumber: "ORD-2025-1156",
-      productName: "Office Desk with Drawers",
-      status: "Processing",
-      orderDate: "05/12/2025",
-      estimatedDelivery: "12/12/2025",
-      totalAmount: 12999
-    }]
+    recentOrders: recentOrders
 
   };
 

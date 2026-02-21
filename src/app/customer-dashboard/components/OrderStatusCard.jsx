@@ -1,7 +1,10 @@
+'use client';
+import { useRouter } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
 import PropTypes from 'prop-types';
 
 export default function OrderStatusCard({ order }) {
+  const router = useRouter();
   const getStatusColor = (status) => {
     switch (status) {
       case 'Delivered':
@@ -58,7 +61,10 @@ export default function OrderStatusCard({ order }) {
           </p>
         </div>
       </div>
-      <button className="w-full bg-muted text-foreground px-4 py-2 rounded-md font-body text-sm font-medium hover:bg-muted/80 transition-fast flex items-center justify-center gap-2">
+      <button
+        onClick={() => router.push('/order-history')}
+        className="w-full bg-muted text-foreground px-4 py-2 rounded-md font-body text-sm font-medium hover:bg-muted/80 transition-fast flex items-center justify-center gap-2"
+      >
         <Icon name="EyeIcon" size={16} variant="outline" />
         Track Order
       </button>

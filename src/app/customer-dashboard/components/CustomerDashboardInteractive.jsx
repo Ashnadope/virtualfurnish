@@ -9,6 +9,7 @@ import RecommendationCard from './RecommendationCard';
 import OrderStatusCard from './OrderStatusCard';
 import ShareDesignModal from './ShareDesignModal';
 import { roomDesignService } from '@/services/roomDesign.service';
+import { cartService } from '@/services/cart.service';
 import PropTypes from 'prop-types';
 
 export default function CustomerDashboardInteractive({ initialData }) {
@@ -16,6 +17,8 @@ export default function CustomerDashboardInteractive({ initialData }) {
   const [designs, setDesigns] = useState(initialData?.recentDesigns || []);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [shareModalData, setShareModalData] = useState({ url: '', name: '' });
+  const [addingToCart, setAddingToCart] = useState(new Set());
+  const [cartToast, setCartToast] = useState(null); // { message, isError }
 
   const handleContinueDesign = (designId) => {
     router?.push(`/virtual-room-designer?design=${designId}`);
@@ -61,12 +64,30 @@ export default function CustomerDashboardInteractive({ initialData }) {
     }
   };
 
-  const handleAddToCart = (productId) => {
-    console.log(`Added product ${productId} to cart`);
+  const handleAddToCart = async (product) => {
+    setAddingToCart(prev => new Set(prev).add(product.id));
+    try {
+      const { error } = await cartService.addToCart({
+        productId: product.id,
+        variantId: product.variantId,
+        quantity: 1,
+        price: product.price
+      });
+      if (error) {
+        setCartToast({ message: 'Failed to add to cart', isError: true });
+      } else {
+        setCartToast({ message: `${product.name} added to cart!`, isError: false });
+      }
+    } catch {
+      setCartToast({ message: 'Failed to add to cart', isError: true });
+    } finally {
+      setAddingToCart(prev => { const next = new Set(prev); next.delete(product.id); return next; });
+      setTimeout(() => setCartToast(null), 3000);
+    }
   };
 
-  const handleViewProductDetails = (productId) => {
-    console.log(`Viewing product ${productId} details`);
+  const handleViewProductDetails = (product) => {
+    router.push('/product/' + product.id);
   };
 
   // Update designs when initialData changes
@@ -78,6 +99,14 @@ export default function CustomerDashboardInteractive({ initialData }) {
 
   return (
     <div className="space-y-6">
+      {/* Cart toast notification */}
+      {cartToast && (
+        <div className={`fixed bottom-6 right-6 z-50 px-5 py-3 rounded-lg shadow-elevated text-sm font-body font-medium transition-all animate-in slide-in-from-bottom-2 ${
+          cartToast.isError ? 'bg-error text-error-foreground' : 'bg-success text-white'
+        }`}>
+          {cartToast.message}
+        </div>
+      )}
       <WelcomeSection
         userName={initialData?.userName}
         savedDesigns={initialData?.savedDesigns}
@@ -147,18 +176,32 @@ export default function CustomerDashboardInteractive({ initialData }) {
               product={product}
               onAddToCart={handleAddToCart}
               onViewDetails={handleViewProductDetails}
+              isAdding={addingToCart.has(product?.id)}
             />
           ))}
         </div>
       </div>
-      <div>
-        <h2 className="font-heading text-xl font-bold text-foreground mb-4">Recent Orders</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {initialData?.recentOrders?.map((order) => (
-            <OrderStatusCard key={order?.orderNumber} order={order} />
-          ))}
+      {initialData?.recentOrders?.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-heading text-xl font-bold text-foreground">Recent Orders</h2>
+            <button
+              onClick={() => router?.push('/order-history')}
+              className="font-body text-sm text-primary hover:text-primary/80 transition-fast flex items-center gap-1"
+            >
+              View All
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M6 12L10 8L6 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {initialData?.recentOrders?.map((order) => (
+              <OrderStatusCard key={order?.orderNumber} order={order} />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Share Design Modal */}
       <ShareDesignModal
@@ -199,7 +242,8 @@ CustomerDashboardInteractive.propTypes = {
     )?.isRequired,
     recommendations: PropTypes?.arrayOf(
       PropTypes?.shape({
-        id: PropTypes?.number?.isRequired,
+        id: PropTypes?.string?.isRequired,
+        variantId: PropTypes?.string,
         name: PropTypes?.string?.isRequired,
         category: PropTypes?.string?.isRequired,
         price: PropTypes?.number?.isRequired,

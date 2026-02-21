@@ -2,7 +2,7 @@ import AppImage from '@/components/ui/AppImage';
 import Icon from '@/components/ui/AppIcon';
 import PropTypes from 'prop-types';
 
-export default function RecommendationCard({ product, onAddToCart, onViewDetails }) {
+export default function RecommendationCard({ product, onAddToCart, onViewDetails, isAdding }) {
   return (
     <div className="bg-surface rounded-lg shadow-card border border-border overflow-hidden group hover:shadow-elevated transition-smooth">
       <div className="relative h-48 overflow-hidden">
@@ -17,7 +17,7 @@ export default function RecommendationCard({ product, onAddToCart, onViewDetails
           </div>
         )}
         <button
-          onClick={() => onViewDetails(product?.id)}
+          onClick={() => onViewDetails(product)}
           className="absolute inset-0 bg-foreground/0 hover:bg-foreground/10 transition-fast"
           aria-label={`View details for ${product?.name}`}
         />
@@ -60,11 +60,24 @@ export default function RecommendationCard({ product, onAddToCart, onViewDetails
           </p>
         </div>
         <button
-          onClick={() => onAddToCart(product?.id)}
-          className="w-full bg-primary text-primary-foreground px-4 py-2 rounded-md font-body text-sm font-medium hover:bg-primary/90 transition-fast flex items-center justify-center gap-2"
+          onClick={() => onAddToCart(product)}
+          disabled={isAdding}
+          className="w-full bg-primary text-primary-foreground px-4 py-2 rounded-md font-body text-sm font-medium hover:bg-primary/90 transition-fast flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
         >
-          <Icon name="ShoppingCartIcon" size={16} variant="outline" />
-          Add to Cart
+          {isAdding ? (
+            <>
+              <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+              Adding...
+            </>
+          ) : (
+            <>
+              <Icon name="ShoppingCartIcon" size={16} variant="outline" />
+              Add to Cart
+            </>
+          )}
         </button>
       </div>
     </div>
@@ -73,7 +86,8 @@ export default function RecommendationCard({ product, onAddToCart, onViewDetails
 
 RecommendationCard.propTypes = {
   product: PropTypes?.shape({
-    id: PropTypes?.number?.isRequired,
+    id: PropTypes?.string?.isRequired,
+    variantId: PropTypes?.string,
     name: PropTypes?.string?.isRequired,
     category: PropTypes?.string?.isRequired,
     price: PropTypes?.number?.isRequired,
@@ -86,4 +100,5 @@ RecommendationCard.propTypes = {
   })?.isRequired,
   onAddToCart: PropTypes?.func?.isRequired,
   onViewDetails: PropTypes?.func?.isRequired,
+  isAdding: PropTypes?.bool,
 };
