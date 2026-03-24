@@ -57,6 +57,7 @@ serve(async (req) => {
 
     console.log('Creating order with number:', orderNumber)
     console.log('GCash reference ID:', gcashReferenceId)
+    console.log('Existing orderId from client:', orderData.orderId || 'none')
 
     // In production, integrate with actual GCash API
     // For now, simulate GCash payment processing
@@ -67,59 +68,142 @@ serve(async (req) => {
       status: 'succeeded'
     }
 
-    console.log('Creating order in database...')
-    const { data: order, error: orderError } = await supabaseClient
-      .from('orders')
-      .insert({
-        user_id: user.id,
-        order_number: orderNumber,
-        payment_method: 'gcash',
-        payment_intent_id: gcashReferenceId,
-        subtotal: orderData.subtotal,
-        tax_amount: orderData.tax || 0,
-        shipping_amount: orderData.shipping_cost || 0,
-        discount_amount: orderData.discount || 0,
-        total_amount: orderData.total,
-        currency: orderData.currency || 'PHP',
-        shipping_address: orderData.shipping || customerInfo.billing,
-        billing_address: customerInfo.billing,
-        status: gcashPaymentResult.success ? 'processing' : 'pending',
-        payment_status: gcashPaymentResult.success ? 'succeeded' : 'pending'
-      })
-      .select()
-      .single()
+    let order: any = null
 
-    if (orderError) {
-      console.error('Order creation error:', orderError)
-      return new Response(
-        JSON.stringify({ error: 'Failed to create order' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    // If the client already has an order (e.g. card payment was initialized first),
+    // UPDATE that order to GCash instead of creating a duplicate.
+    if (orderData.orderId) {
+      console.log('Updating existing order to GCash:', orderData.orderId)
+      const { data: updatedOrder, error: updateError } = await supabaseClient
+        .from('orders')
+        .update({
+          payment_method: 'gcash',
+          payment_intent_id: gcashReferenceId,
+          status: 'processing',
+          payment_status: 'succeeded'
+        })
+        .eq('id', orderData.orderId)
+        .eq('user_id', user.id)   // extra safety: only the owner can update
+        .select()
+        .single()
+
+      if (updateError) {
+        console.error('Order update error:', updateError)
+        return new Response(
+          JSON.stringify({ error: 'Failed to update order for GCash' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      order = updatedOrder
+      console.log('Order updated successfully:', order.id)
+    } else {
+      // No existing order — check for a very recent duplicate then create fresh
+      const { data: recentOrder } = await supabaseClient
+        .from('orders')
+        .select('id, order_number')
+        .eq('user_id', user.id)
+        .eq('total_amount', orderData.total)
+        .eq('payment_method', 'gcash')
+        .gte('created_at', new Date(Date.now() - 60_000).toISOString())
+        .limit(1)
+        .maybeSingle()
+
+      if (recentOrder) {
+        console.log('Duplicate order detected, returning existing order:', recentOrder.id)
+        const { data: existingTxn } = await supabaseClient
+          .from('payment_transactions')
+          .select('gcash_reference_id')
+          .eq('order_id', recentOrder.id)
+          .maybeSingle()
+        return new Response(
+          JSON.stringify({
+            success: true,
+            orderId: recentOrder.id,
+            orderNumber: recentOrder.order_number,
+            referenceNumber: existingTxn?.gcash_reference_id || gcashReferenceId,
+            status: 'succeeded',
+            message: 'GCash payment already processed'
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      console.log('Creating new order in database...')
+      const { data: newOrder, error: orderError } = await supabaseClient
+        .from('orders')
+        .insert({
+          user_id: user.id,
+          order_number: orderNumber,
+          payment_method: 'gcash',
+          payment_intent_id: gcashReferenceId,
+          subtotal: orderData.subtotal,
+          tax_amount: orderData.tax || 0,
+          shipping_amount: orderData.shipping_cost || 0,
+          discount_amount: orderData.discount || 0,
+          total_amount: orderData.total,
+          currency: orderData.currency || 'PHP',
+          shipping_address: orderData.shipping || customerInfo.billing,
+          billing_address: customerInfo.billing,
+          status: gcashPaymentResult.success ? 'processing' : 'pending',
+          payment_status: gcashPaymentResult.success ? 'succeeded' : 'pending'
+        })
+        .select()
+        .single()
+
+      if (orderError) {
+        console.error('Order creation error:', orderError)
+        return new Response(
+          JSON.stringify({ error: 'Failed to create order' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      order = newOrder
+      console.log('Order created successfully:', order.id)
     }
 
-    console.log('Order created successfully:', order.id)
-    console.log('Inserting order items...')
-    const orderItems = orderData.items.map((item: any) => ({
-      order_id: order.id,
-      product_id: item.product_id || item.id || null,
-      variant_id: item.variant_id || null,
-      variant_name: item.variant_name || '',
-      sku: item.sku || '',
-      name: item.name,
-      brand: item.brand || '',
-      price: parseFloat(item.price) || 0,
-      quantity: parseInt(item.quantity) || 1,
-      total: (parseFloat(item.price) || 0) * (parseInt(item.quantity) || 1)
-    }))
+    // Only insert order_items for freshly created orders (reused orders already have items)
+    if (!orderData.orderId) {
+      console.log('Inserting order items...')
+      const orderItems = orderData.items.map((item: any) => ({
+        order_id: order.id,
+        product_id: item.product_id || item.id || null,
+        variant_id: item.variant_id || null,
+        variant_name: item.variant_name || '',
+        sku: item.sku || '',
+        name: item.name,
+        brand: item.brand || '',
+        price: parseFloat(item.price) || 0,
+        quantity: parseInt(item.quantity) || 1,
+        total: (parseFloat(item.price) || 0) * (parseInt(item.quantity) || 1)
+      }))
 
-    await supabaseClient.from('order_items').insert(orderItems)
-    console.log('Order items inserted')
+      const { error: itemsError } = await supabaseClient.from('order_items').insert(orderItems)
+      if (itemsError) {
+        console.error('Order items insert error:', itemsError)
+        // Roll back the order if items fail
+        await supabaseClient.from('orders').delete().eq('id', order.id)
+        return new Response(
+          JSON.stringify({ error: 'Failed to create order items' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      console.log('Order items inserted')
+    } else {
+      console.log('Skipping order_items insert — reusing existing order:', order.id)
+    }
 
     console.log('Creating payment transaction...')
-    await supabaseClient.from('payment_transactions').insert({
+    const txnId = `TXN-${Date.now()}-${Math.random().toString().substr(2, 6)}`
+
+    // For reused orders, delete the old card payment_transaction first (upsert not possible without unique key)
+    if (orderData.orderId) {
+      await supabaseClient.from('payment_transactions').delete().eq('order_id', order.id)
+    }
+
+    const { error: txnError } = await supabaseClient.from('payment_transactions').insert({
       order_id: order.id,
       gcash_reference_id: gcashReferenceId,
-      gateway_transaction_id: gcashPaymentResult.transaction_id,
+      gateway_transaction_id: txnId,
       amount: orderData.total,
       currency: orderData.currency || 'PHP',
       status: gcashPaymentResult.status,
@@ -131,14 +215,46 @@ serve(async (req) => {
       }
     })
 
+    if (txnError) {
+      console.error('Payment transaction insert error (non-fatal):', txnError)
+      // Non-fatal: order was created, just log and continue
+    }
+
     console.log('Payment transaction created')
+
+    // Decrement stock for each item in the order
+    try {
+      const { data: items } = await supabaseClient
+        .from('order_items')
+        .select('variant_id, product_id, quantity')
+        .eq('order_id', order.id);
+
+      for (const item of (items ?? [])) {
+        if (item.variant_id) {
+          await supabaseClient.rpc('adjust_variant_stock', {
+            p_variant_id: item.variant_id,
+            p_delta: -(item.quantity),
+          });
+        } else if (item.product_id) {
+          await supabaseClient.rpc('adjust_product_stock', {
+            p_product_id: item.product_id,
+            p_delta: -(item.quantity),
+          });
+        }
+      }
+      console.log('Stock decremented for order', order.id, 'items:', items?.length ?? 0);
+    } catch (stockErr: any) {
+      // Non-fatal — payment is confirmed, log and continue
+      console.error('Stock decrement error for order', order.id, ':', stockErr?.message);
+    }
+
     console.log('GCash payment processed successfully')
 
     return new Response(
       JSON.stringify({
         success: true,
         orderId: order.id,
-        orderNumber: orderNumber,
+        orderNumber: order.order_number,
         referenceNumber: gcashReferenceId,
         status: gcashPaymentResult.status,
         message: 'GCash payment processed successfully'

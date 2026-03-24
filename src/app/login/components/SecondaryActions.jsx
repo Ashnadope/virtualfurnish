@@ -7,7 +7,7 @@ export default function SecondaryActions({ showRegister = true }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <Link
-          href="/login"
+          href="/forgot-password"
           className="text-sm text-primary hover:text-primary/80 transition-fast font-body flex items-center gap-1"
         >
           <Icon name="QuestionMarkCircleIcon" size={16} variant="outline" />

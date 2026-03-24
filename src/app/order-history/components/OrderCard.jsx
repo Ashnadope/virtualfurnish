@@ -1,17 +1,33 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import PropTypes from 'prop-types';
 import AppImage from '../../../components/ui/AppImage';
 
 export default function OrderCard({ 
   order, 
-  onDownloadInvoice, 
   onDownloadReceipt,
   onReorder,
-  onContactSupport
+  onContactSupport,
+  onCancelOrder
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+
+  const CANCELLABLE_STATUSES = ['pending', 'processing', 'packing'];
+  const canCancel = CANCELLABLE_STATUSES.includes(order?.status?.toLowerCase());
+
+  const isPaymentConfirmed = ['paid', 'completed', 'succeeded'].includes(order?.paymentStatus?.toLowerCase());
+
+  const handleCancel = async () => {
+    setCancelling(true);
+    try {
+      await onCancelOrder?.(order);
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   const getStatusColor = (status) => {
     const colors = {
@@ -96,14 +112,10 @@ export default function OrderCard({
             {expanded ? 'Hide Details' : 'View Details'}
           </button>
           <button
-            onClick={() => onDownloadInvoice?.(order)}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors"
-          >
-            Download Invoice
-          </button>
-          <button
             onClick={() => onDownloadReceipt?.(order)}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+            disabled={!isPaymentConfirmed}
+            title={!isPaymentConfirmed ? 'Receipt available once payment is confirmed' : 'Download Receipt'}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Receipt
           </button>
@@ -113,12 +125,27 @@ export default function OrderCard({
           >
             Reorder Items
           </button>
-          <button
-            onClick={() => onContactSupport?.(order)}
+          <Link
+            href={`/support?order=${encodeURIComponent(order?.orderNumber)}`}
             className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
           >
             Contact Support
-          </button>
+          </Link>
+          {canCancel && (
+            <button
+              onClick={handleCancel}
+              disabled={cancelling}
+              className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            >
+              {cancelling && (
+                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                </svg>
+              )}
+              {cancelling ? 'Cancelling…' : 'Cancel Order'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -305,8 +332,8 @@ OrderCard.propTypes = {
       imageUrl: PropTypes?.string
     }))
   })?.isRequired,
-  onDownloadInvoice: PropTypes?.func,
   onDownloadReceipt: PropTypes?.func,
   onReorder: PropTypes?.func,
-  onContactSupport: PropTypes?.func
+  onContactSupport: PropTypes?.func,
+  onCancelOrder: PropTypes?.func,
 };

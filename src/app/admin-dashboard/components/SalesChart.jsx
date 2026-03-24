@@ -5,23 +5,10 @@ import PropTypes from 'prop-types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 
-export default function SalesChart({ data }) {
+export default function SalesChart({ dataByRange }) {
   const [timeRange, setTimeRange] = useState('week');
 
-  const filterData = () => {
-    switch (timeRange) {
-      case 'week':
-        return data?.slice(0, 7);
-      case 'month':
-        return data?.slice(0, 30);
-      case 'year':
-        return data;
-      default:
-        return data;
-    }
-  };
-
-  const filteredData = filterData();
+  const filteredData = dataByRange?.[timeRange] ?? [];
 
   return (
     <div className="bg-surface rounded-lg p-6 border border-border shadow-card">
@@ -93,10 +80,9 @@ export default function SalesChart({ data }) {
 }
 
 SalesChart.propTypes = {
-  data: PropTypes?.arrayOf(
-    PropTypes?.shape({
-      date: PropTypes?.string?.isRequired,
-      revenue: PropTypes?.number?.isRequired,
-    })
-  )?.isRequired,
+  dataByRange: PropTypes?.shape({
+    week:  PropTypes?.arrayOf(PropTypes?.shape({ date: PropTypes?.string, revenue: PropTypes?.number })),
+    month: PropTypes?.arrayOf(PropTypes?.shape({ date: PropTypes?.string, revenue: PropTypes?.number })),
+    year:  PropTypes?.arrayOf(PropTypes?.shape({ date: PropTypes?.string, revenue: PropTypes?.number })),
+  }),
 };

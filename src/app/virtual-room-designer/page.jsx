@@ -39,7 +39,9 @@ export default async function VirtualRoomDesignerPage() {
       alt: `${product.name}${variant.color ? ` - ${variant.color}` : ''} | ${product.description || product.category}`,
       price: variant.price ?? product.basePrice,
       color: variant.color,
-      dimensions: variant.dimensions,
+      dimensions: variant.dimensions && typeof variant.dimensions === 'object'
+        ? `${variant.dimensions.width ?? '?'}W × ${variant.dimensions.length ?? '?'}L × ${variant.dimensions.height ?? '?'}H cm`
+        : (variant.dimensions || null),
       material: variant.material,
       weight: variant.weight,
       stock: variant.stockQuantity ?? 0,

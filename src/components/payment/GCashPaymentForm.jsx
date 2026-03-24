@@ -8,16 +8,32 @@ export default function GCashPaymentForm({
   currency = 'PHP',
   orderData,
   customerInfo,
+  defaultPhone,
   onSuccess,
   onError
 }) {
+  const normalizePhone = (raw) => {
+    if (!raw) return ''
+    // Strip spaces, dashes, parentheses
+    let n = raw.replace(/[\s\-()]/g, '')
+    // +639XXXXXXXXX → 09XXXXXXXXX
+    if (n.startsWith('+63')) return '0' + n.slice(3)
+    // 639XXXXXXXXX → 09XXXXXXXXX
+    if (n.startsWith('63') && n.length >= 12) return '0' + n.slice(2)
+    // 9XXXXXXXXX (10 digits) → 09XXXXXXXXX
+    if (n.startsWith('9') && n.length === 10) return '0' + n
+    return n
+  }
+
   const [isProcessing, setIsProcessing] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
-  const [gcashNumber, setGcashNumber] = useState('')
+  const [gcashNumber, setGcashNumber] = useState(() => normalizePhone(defaultPhone))
   const [showSuccess, setShowSuccess] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+
+    if (isProcessing) return  // prevent double-submit
 
     if (!gcashNumber || gcashNumber.length < 11) {
       setErrorMessage('Please enter a valid GCash mobile number')

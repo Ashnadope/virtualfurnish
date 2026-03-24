@@ -4,8 +4,43 @@ import { useState, useRef } from 'react';
 import PropTypes from 'prop-types';
 import Icon from '@/components/ui/AppIcon';
 import AppImage from '@/components/ui/AppImage';
-import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+
+/**
+ * Compress an image File before sending it to the AI API.
+ * - If the image is already small (≤800px wide AND ≤300 KB) it is returned as-is
+ *   via a data URL so quality is not degraded for no reason.
+ * - Otherwise it is resized to max 800px wide and re-encoded as JPEG at 0.7 quality.
+ * Returns a data URL string, or null on error (caller falls back to the signed URL).
+ */
+function compressImageForAI(file) {
+  return new Promise((resolve) => {
+    const MAX_WIDTH = 800;
+    const SIZE_THRESHOLD = 300 * 1024; // 300 KB
+
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+
+      // Already within limits — no compression needed; caller uses the original signed URL
+      if (img.width <= MAX_WIDTH && file.size <= SIZE_THRESHOLD) {
+        resolve(null);
+        return;
+      }
+
+      // Downscale (never upscale) and re-encode to JPEG
+      const scale = Math.min(1, MAX_WIDTH / img.width);
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', 0.7));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    img.src = url;
+  });
+}
 
 export default function ImageUploadModal({ isOpen, onClose, onUpload }) {
   const { user } = useAuth();
@@ -88,93 +123,65 @@ export default function ImageUploadModal({ isOpen, onClose, onUpload }) {
     try {
       setUploading(true);
       setError('');
-      
-      console.log('=== Starting room upload ===');
-      console.log('User ID:', user.id);
-      console.log('File:', selectedFile.name, selectedFile.size, 'bytes');
 
-      const supabase = createClient();
-      
-      // Create unique filename with timestamp
-      const timestamp = Date.now();
-      const fileExt = selectedFile.name.split('.').pop();
-      const fileName = `room-${timestamp}.${fileExt}`;
-      const filePath = `${user.id}/${fileName}`;
-      
-      console.log('Upload path:', filePath);
-      console.log('Uploading to room-uploads bucket...');
+      // ── Step 1: Upload the room image through the server route ────────────
+      // The server uses the service role key so it never fails due to an
+      // expired browser token (the old "bucket policy" timeout problem).
+      const roomForm = new FormData();
+      roomForm.append('file', selectedFile);
+      roomForm.append('prefix', 'room');
 
-      // Upload file to Supabase Storage (private bucket)
-      // Set timeout for upload to prevent indefinite hanging
-      const uploadPromise = supabase.storage
-        .from('room-uploads')
-        .upload(filePath, selectedFile, {
-          cacheControl: '3600',
-          upsert: false
-        });
-
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Upload timeout - check if room-uploads bucket exists and policies are applied')), 30000)
-      );
-
-      const { data: uploadData, error: uploadError } = await Promise.race([
-        uploadPromise,
-        timeoutPromise
-      ]).catch(err => ({ data: null, error: err }));
-
-      console.log('Upload response:', { data: uploadData, error: uploadError });
-
-      if (uploadError) {
-        console.error('Upload error:', uploadError);
-        throw new Error(`Upload failed: ${uploadError.message}`);
-      }
-
-      console.log('Upload successful!', uploadData);
-
-      // Get signed URL for private bucket (valid for 1 hour)
-      console.log('Creating signed URL...');
-      const { data: urlData, error: urlError } = await supabase.storage
-        .from('room-uploads')
-        .createSignedUrl(filePath, 3600);
-
-      if (urlError) {
-        console.error('Error creating signed URL:', urlError);
-        throw new Error(`Failed to create signed URL: ${urlError.message}`);
-      }
-
-      console.log('Signed URL created:', urlData.signedUrl);
-
-      // Create room design entry in database
-      console.log('Creating room design entry...');
-      const { data: designData, error: designError } = await supabase
-        .from('room_designs')
-        .insert([
-          {
-            user_id: user.id,
-            name: `Room Design - ${new Date().toLocaleDateString()}`,
-            room_image_url: filePath, // Store path, not signed URL (signed URLs expire)
-            design_data: { furniture: [] }, // Empty furniture array initially
-            is_public: false
-          }
-        ])
-        .select()
-        .single();
-
-      if (designError) {
-        console.error('Error creating design:', designError);
-        throw new Error(`Failed to save design: ${designError.message}`);
-      }
-
-      console.log('Room design created:', designData);
-      console.log('=== Upload completed successfully ===');
-
-      // Pass the signed URL and design ID to parent
-      onUpload({
-        imageUrl: urlData.signedUrl,
-        imagePath: filePath,
-        designId: designData.id
+      const roomRes = await fetch('/api/room-designer/upload-url', {
+        method: 'POST',
+        body: roomForm,
       });
-      
+      if (!roomRes.ok) {
+        const { error } = await roomRes.json();
+        throw new Error(error || 'Upload failed');
+      }
+      const { viewUrl, filePath } = await roomRes.json();
+
+      // ── Step 2: Create room_designs record via server route ───────────────
+      const designRes = await fetch('/api/room-designer/designs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ room_image_url: filePath }),
+      });
+      if (!designRes.ok) {
+        const { error } = await designRes.json();
+        throw new Error(`Failed to save design: ${error}`);
+      }
+      const { data: designData } = await designRes.json();
+
+      // ── Step 3: Upload compressed image for AI analysis (optional) ────────
+      const compressedDataUrl = await compressImageForAI(selectedFile);
+      let analysisImageUrl = viewUrl; // fallback to original
+      if (compressedDataUrl) {
+        try {
+          const compressedBlob = await fetch(compressedDataUrl).then(r => r.blob());
+          const aiForm = new FormData();
+          aiForm.append('file', new File([compressedBlob], 'ai.jpg', { type: 'image/jpeg' }));
+          aiForm.append('prefix', 'ai');
+          const aiRes = await fetch('/api/room-designer/upload-url', {
+            method: 'POST',
+            body: aiForm,
+          });
+          if (aiRes.ok) {
+            const { viewUrl: aiViewUrl } = await aiRes.json();
+            if (aiViewUrl) analysisImageUrl = aiViewUrl;
+          }
+        } catch {
+          console.warn('Could not upload compressed image; AI will use the full-res original.');
+        }
+      }
+
+      onUpload({
+        imageUrl: viewUrl,
+        imagePath: filePath,
+        designId: designData.id,
+        analysisImageUrl,
+      });
+
       handleClose();
     } catch (error) {
       console.error('Error uploading room:', error);

@@ -1,13 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function LoginForm() {
-  const router = useRouter();
-  const { signIn, user, userRole, loading, signOut } = useAuth();
+  const { signIn } = useAuth();
+  const searchParams = useSearchParams();
+  const message = searchParams?.get('message');
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -15,15 +16,6 @@ export default function LoginForm() {
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-
-  // If user is already logged in, redirect them
-  useEffect(() => {
-    if (!loading && user) {
-      // User is logged in, redirect to dashboard
-      const redirectUrl = userRole === 'admin' ? '/admin-dashboard' : '/customer-dashboard';
-      router?.push(redirectUrl);
-    }
-  }, [user, userRole, loading, router]);
 
   const validateEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -70,8 +62,11 @@ export default function LoginForm() {
     const { error } = await signIn(formData.email, formData.password);
 
     if (error) {
+      const isNetworkError = error.message === 'Failed to fetch' || error.message?.includes('fetch');
       setErrors({
-        submit: error.message || 'Invalid email or password'
+        submit: isNetworkError
+          ? 'Unable to connect to the server. Please check your internet connection and try again.'
+          : (error.message || 'Invalid email or password')
       });
       setIsLoading(false);
     } else {
@@ -84,6 +79,12 @@ export default function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {message && (
+        <div className="flex items-start gap-3 p-4 bg-primary/8 border border-primary/20 rounded-lg">
+          <Icon name="InformationCircleIcon" size={18} className="text-primary flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-primary">{message}</p>
+        </div>
+      )}
       <div>
         <label htmlFor="email" className="block text-sm font-medium text-foreground mb-2">
           Email Address

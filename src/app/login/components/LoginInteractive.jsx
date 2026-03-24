@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import PropTypes from 'prop-types';
 import LoginForm from './LoginForm';
 import SecondaryActions from './SecondaryActions';
@@ -36,7 +36,9 @@ export default function LoginInteractive({ features, trustSignals }) {
               </p>
             </div>
 
-            <LoginForm />
+            <Suspense fallback={null}>
+              <LoginForm />
+            </Suspense>
 
             <div className="mt-6">
               <SecondaryActions showRegister={true} />

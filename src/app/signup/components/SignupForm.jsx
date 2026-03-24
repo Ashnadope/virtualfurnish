@@ -91,7 +91,14 @@ export default function SignupForm() {
         return;
     }
 
-    // Create user profile in user_profiles table
+    // If session is null, Supabase requires email confirmation first.
+    // The user_profiles row will be created automatically on first login.
+    if (!data?.session) {
+      router.push('/login?message=Account created! Please check your email to confirm before signing in.');
+      return;
+    }
+
+    // Session exists (email confirmation disabled) — create profile immediately
     if (data?.user?.id) {
       try {
         const { error: profileError } = await supabase

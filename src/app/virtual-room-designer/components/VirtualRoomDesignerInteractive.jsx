@@ -21,7 +21,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function VirtualRoomDesignerInteractive({ initialFurnitureData }) {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const searchParams = useSearchParams();
   const designId = searchParams.get('design');
   const canvasRef = useRef(null);
@@ -44,15 +44,24 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState(null);
   const [isLoadingDesign, setIsLoadingDesign] = useState(false);
+  const [loadingError, setLoadingError] = useState(null);
   const [isGeneratingRender, setIsGeneratingRender] = useState(false);
   const [showContinueModal, setShowContinueModal] = useState(false);
   const [latestDesign, setLatestDesign] = useState(null);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [designName, setDesignName] = useState('');
   const [designDescription, setDesignDescription] = useState('');
+  const [furnitureCatalogOpen, setFurnitureCatalogOpen] = useState(false);
+  // Compressed image URL used only for AI calls (full-res stays in Supabase for display).
+  // Set from upload data URL on fresh uploads, or from the signed URL when loading saved designs.
+  const [roomAnalysisImageUrl, setRoomAnalysisImageUrl] = useState(null);
 
-  // Load design from URL parameter or check for latest design
+  // Load design from URL parameter or check for latest design.
+  // Guard: wait until auth finishes initializing so the Supabase client
+  // has an active session before we query RLS-protected tables.
   useEffect(() => {
+    if (authLoading) return; // auth not ready yet — skip, will re-run when resolved
+
     const initializeDesign = async () => {
       if (designId) {
         // If design ID in URL, load that specific design
@@ -92,7 +101,7 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
     };
 
     initializeDesign();
-  }, [designId, user?.id]);
+  }, [designId, user?.id, authLoading]);
 
   const loadDesignFromDatabase = async (id) => {
     try {
@@ -103,7 +112,7 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
       
       if (error) {
         console.error('Error loading design:', error);
-        alert('Failed to load design');
+        setLoadingError(typeof error === 'string' ? error : 'Failed to load design. Please go back and try again.');
         return;
       }
 
@@ -116,6 +125,8 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
       setCurrentDesignId(data.id);
       setRoomImagePath(data.room_image_url);
       setUploadedImage(signedUrl);
+      // For loaded designs the compressed version is gone; use signed URL as-is for any re-analysis
+      setRoomAnalysisImageUrl(signedUrl);
       
       const loadedFurniture = data.design_data?.furniture || [];
       setPlacedFurniture(loadedFurniture);
@@ -137,7 +148,7 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
       console.log('Placed furniture:', loadedFurniture);
     } catch (error) {
       console.error('Error in loadDesignFromDatabase:', error);
-      alert('Failed to load design');
+      setLoadingError('Unable to load design. Please go back and try again.');
     } finally {
       setIsLoadingDesign(false);
     }
@@ -280,8 +291,12 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
     setDesignName(`Room Design ${new Date().toLocaleDateString()}`);
     setDesignDescription('');
     saveToHistory({ image: uploadData.imageUrl, furniture: [] });
+
+    // Use the compressed version for AI (smaller = fewer vision tokens); fall back to signed URL
+    const aiImageUrl = uploadData.analysisImageUrl || uploadData.imageUrl;
+    setRoomAnalysisImageUrl(aiImageUrl);
     
-    // Automatically trigger AI analysis after image upload
+    // Trigger AI analysis once for this new room design
     setIsProcessingAI(true);
     try {
       const response = await fetch('/api/room-analysis', {
@@ -290,7 +305,7 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
-          imageUrl: uploadData.imageUrl,
+          imageUrl: aiImageUrl,
           furnitureData: initialFurnitureData 
         }),
       });
@@ -308,6 +323,10 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
         setShowAnalysisPanel(true);
         setShowAISuggestions(true);
         setAiSuggestionType('room');
+        // Persist analysis to DB immediately so it survives page reload without a second API call
+        roomDesignService.updateDesign(uploadData.designId, {
+          design_data: { furniture: [], aiAnalysis: data.analysis }
+        }).catch(err => console.warn('Could not persist AI analysis:', err));
       } else {
         console.error('AI analysis failed:', data?.error);
         const errorMessage = data?.error || 'AI analysis failed';
@@ -334,13 +353,16 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
     const newPlacedFurniture = [...placedFurniture, newFurniture];
     setPlacedFurniture(newPlacedFurniture);
     setSelectedFurnitureId(newFurniture?.id);
-    setShowPropertiesPanel(true);
+    setFurnitureCatalogOpen(false); // close catalog when furniture is added
     saveToHistory({ image: uploadedImage, furniture: newPlacedFurniture });
   };
 
-  const handleFurnitureSelect = (furnitureId) => {
+  const handleFurnitureSelect = (furnitureId, showProperties = true) => {
     setSelectedFurnitureId(furnitureId);
-    setShowPropertiesPanel(true);
+    if (showProperties) {
+      setShowPropertiesPanel(true);
+      setFurnitureCatalogOpen(false); // close catalog when properties panel opens
+    }
   };
 
   const handleFurnitureMove = (furnitureId, newPosition) => {
@@ -439,8 +461,27 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
     }
   };
 
-  const handleExport = () => {
-    alert('Export functionality will download your design as an image file.');
+  const handleExport = async () => {
+    if (!uploadedImage) {
+      alert('Please upload a room image first before exporting.');
+      return;
+    }
+    if (!canvasRef.current?.captureCanvas) return;
+
+    try {
+      const blob = await canvasRef.current.captureCanvas();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${designName || 'room-design'}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Export failed:', err);
+      alert('Export failed. Please try again.');
+    }
   };
 
   const handleGetLayoutSuggestions = async () => {
@@ -459,7 +500,8 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ 
-            imageUrl: uploadedImage,
+            // Use compressed URL when available (fresh upload); fall back to display URL
+            imageUrl: roomAnalysisImageUrl || uploadedImage,
             furnitureData: initialFurnitureData 
           }),
         });
@@ -477,6 +519,12 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
           setShowAnalysisPanel(true);
           setShowAISuggestions(true);
           setAiSuggestionType('layout');
+          // Persist so this is the last time we call the API for this design
+          if (currentDesignId) {
+            roomDesignService.updateDesign(currentDesignId, {
+              design_data: { furniture: placedFurniture, aiAnalysis: data.analysis }
+            }).catch(err => console.warn('Could not persist AI analysis:', err));
+          }
         } else {
           const errorMessage = data?.error || 'Failed to get AI suggestions';
           alert(errorMessage);
@@ -643,7 +691,7 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
       <Sidebar userRole="customer" />
       <Header userRole="customer" userName="John Doe" />
       <main className="pt-16">
-        <div className="p-6">
+        <div className="p-3 lg:p-6">
           <div className="mb-6">
             <Breadcrumb />
           </div>
@@ -654,10 +702,32 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
               <p className="font-body text-lg text-foreground">Loading your design...</p>
               <p className="font-body text-sm text-muted-foreground mt-2">Please wait while we retrieve your room design</p>
             </div>
+          ) : loadingError ? (
+            <div className="flex flex-col items-center justify-center py-20">
+              <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
+                <Icon name="ExclamationTriangleIcon" size={32} variant="outline" className="text-destructive" />
+              </div>
+              <p className="font-body text-lg font-semibold text-foreground mb-2">Could not load design</p>
+              <p className="font-body text-sm text-muted-foreground mb-6">{loadingError}</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setLoadingError(null); loadDesignFromDatabase(designId); }}
+                  className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-fast font-body text-sm font-medium"
+                >
+                  Try Again
+                </button>
+                <a
+                  href="/customer-dashboard"
+                  className="px-4 py-2 bg-muted text-foreground rounded-md hover:bg-muted/80 transition-fast font-body text-sm font-medium"
+                >
+                  Back to Dashboard
+                </a>
+              </div>
+            </div>
           ) : (
             <>
               <div className="mb-6">
-                <div className="flex items-center justify-between">
+                <div className="flex items-start sm:items-center justify-between flex-wrap gap-3">
                   <div>
                     <h1 className="font-heading font-bold text-2xl text-foreground mb-2">
                       Virtual Room Designer
@@ -741,7 +811,14 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
                         </div>
                         <div className="col-span-2">
                           <span className="text-muted-foreground">Dimensions:</span>
-                          <span className="ml-2 text-foreground">{aiAnalysis?.roomAnalysis?.estimatedDimensions}</span>
+                          <span className="ml-2 text-foreground">
+                            {(() => {
+                              const d = aiAnalysis?.roomAnalysis?.estimatedDimensions;
+                              if (!d) return 'Unknown';
+                              if (typeof d === 'object') return Object.values(d).filter(Boolean).join(' × ');
+                              return d;
+                            })()}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -838,13 +915,13 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
                       </div>
                     </div>
 
-                    {aiAnalysis?.layoutSuggestions?.length > 0 && (
+                    {aiAnalysis?.layoutSuggestions?.filter(t => t?.area || t?.suggestion)?.length > 0 && (
                       <div>
                         <h4 className="font-body font-semibold text-foreground mb-2">
                           Layout Tips
                         </h4>
                         <ul className="space-y-2 mb-3">
-                          {aiAnalysis?.layoutSuggestions?.map((tip, index) => (
+                          {aiAnalysis?.layoutSuggestions?.filter(t => t?.area || t?.suggestion)?.map((tip, index) => (
                             <li key={index} className="text-sm text-muted-foreground">
                               <span className="font-medium text-foreground">{tip?.area}:</span>{' '}
                               {tip?.suggestion}
@@ -871,9 +948,29 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
                   <Icon name="InformationCircleIcon" size={20} variant="solid" className="text-primary mt-0.5 flex-shrink-0" />
                   <div className="flex-1">
                     <p className="font-body font-semibold text-sm text-foreground mb-1">
-                      How to Use Drag & Drop
+                      How to Place Furniture
                     </p>
-                    <ul className="font-body text-xs text-muted-foreground space-y-1">
+                    {/* Mobile instructions */}
+                    <ul className="lg:hidden font-body text-xs text-muted-foreground space-y-1">
+                      <li className="flex items-center gap-2">
+                        <span className="w-1 h-1 rounded-full bg-primary"></span>
+                        <span><strong>Add:</strong> Tap item in catalog, or drag it onto the room image</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <span className="w-1 h-1 rounded-full bg-primary"></span>
+                        <span><strong>Move:</strong> Drag placed furniture to reposition</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <span className="w-1 h-1 rounded-full bg-primary"></span>
+                        <span><strong>Details:</strong> Long press furniture to view properties &amp; Add to Cart</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <span className="w-1 h-1 rounded-full bg-primary"></span>
+                        <span><strong>Resize &amp; Rotate:</strong> Pinch with 2 fingers</span>
+                      </li>
+                    </ul>
+                    {/* Desktop instructions */}
+                    <ul className="hidden lg:block font-body text-xs text-muted-foreground space-y-1">
                       <li className="flex items-center gap-2">
                         <span className="w-1 h-1 rounded-full bg-primary"></span>
                         <span><strong>Drag from palette:</strong> Click and hold furniture, drag onto room image, release to place</span>
@@ -912,7 +1009,7 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
                 isProcessing={isProcessingAI}
               />
 
-              <div className="flex gap-4 h-[calc(100vh-8rem)]">
+              <div className="flex gap-4 h-[65vh] lg:h-[calc(100vh-8rem)]">
                 <CanvasArea
                   ref={canvasRef}
                   uploadedImage={uploadedImage}
@@ -932,6 +1029,11 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
                 <FurniturePalette
                   furnitureItems={initialFurnitureData}
                   onAddFurniture={handleAddFurniture}
+                  isOpen={furnitureCatalogOpen}
+                  onToggle={(open) => {
+                    setFurnitureCatalogOpen(open);
+                    if (open) setShowPropertiesPanel(false); // close properties when catalog opens
+                  }}
                 />
 
                 {showPropertiesPanel && selectedFurnitureDetails && (

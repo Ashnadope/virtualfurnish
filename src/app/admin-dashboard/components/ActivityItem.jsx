@@ -1,7 +1,13 @@
+import Link from 'next/link';
 import PropTypes from 'prop-types';
 import Icon from '@/components/ui/AppIcon';
 
-export default function ActivityItem({ type, title, description, time, priority }) {
+export default function ActivityItem({ type, title, description, time, priority, orderNumber, userId, sku }) {
+  let href = null;
+  if (type === 'order' && orderNumber) href = `/admin-orders?q=${encodeURIComponent(orderNumber)}`;
+  else if (type === 'inquiry' && userId) href = `/admin-support?user=${encodeURIComponent(userId)}`;
+  else if (type === 'alert' && sku) href = `/product-management?q=${encodeURIComponent(sku)}`;
+  const isClickable = !!href;
   const getTypeConfig = () => {
     switch (type) {
       case 'order':
@@ -19,8 +25,8 @@ export default function ActivityItem({ type, title, description, time, priority 
 
   const config = getTypeConfig();
 
-  return (
-    <div className="flex items-start gap-4 py-4 border-b border-border last:border-0">
+  const inner = (
+    <>
       <div className={`w-10 h-10 rounded-full flex items-center justify-center ${config?.bg}`}>
         <Icon name={config?.icon} size={20} variant="solid" className="text-white" />
       </div>
@@ -36,6 +42,28 @@ export default function ActivityItem({ type, title, description, time, priority 
         <p className="font-body text-sm text-muted-foreground mb-1">{description}</p>
         <span className="font-body text-xs text-muted-foreground">{time}</span>
       </div>
+      {isClickable && (
+        <div className="self-center text-muted-foreground">
+          <Icon name="ArrowRightIcon" size={16} variant="outline" />
+        </div>
+      )}
+    </>
+  );
+
+  if (isClickable) {
+    return (
+      <Link
+        href={href}
+        className="flex items-start gap-4 py-4 border-b border-border last:border-0 hover:bg-muted/40 rounded-md px-2 -mx-2 transition-colors"
+      >
+        {inner}
+      </Link>
+    );
+  }
+
+  return (
+    <div className="flex items-start gap-4 py-4 border-b border-border last:border-0">
+      {inner}
     </div>
   );
 }
@@ -46,4 +74,7 @@ ActivityItem.propTypes = {
   description: PropTypes?.string?.isRequired,
   time: PropTypes?.string?.isRequired,
   priority: PropTypes?.oneOf(['high', 'normal']),
+  orderNumber: PropTypes?.string,
+  userId: PropTypes?.string,
+  sku: PropTypes?.string,
 };

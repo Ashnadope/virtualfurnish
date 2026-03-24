@@ -1,9 +1,8 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import StripePaymentForm from '@/components/payment/StripePaymentForm';
 import GCashPaymentForm from '@/components/payment/GCashPaymentForm';
-import { createClient } from '@/lib/supabase/client';
 import { paymentService } from '@/services/payment.service';
 import Header from '@/components/common/Header';
 
@@ -31,33 +30,39 @@ export default function CheckoutPage() {
   })
   const [isEditingAddress, setIsEditingAddress] = useState(false)
   const [addressErrors, setAddressErrors] = useState({})
-  const [paymentInitialized, setPaymentInitialized] = useState(false)
+  const [addressId, setAddressId] = useState(null)
+  const [isSavingAddress, setIsSavingAddress] = useState(false)
+  const paymentInitializedRef = useRef(false) // use ref so changes don't re-trigger the effect
 
   useEffect(() => {
     async function initializeCheckout() {
       try {
-        const supabase = createClient()
-        
-        const { data: { user }, error: authError } = await supabase?.auth?.getUser()
-        if (authError || !user) {
-          router?.push('/login')
-          return
+        const res = await fetch('/api/checkout/init');
+        if (res.status === 401) {
+          router?.push('/login');
+          return;
+        }
+        if (!res.ok) {
+          const { error: errMsg } = await res.json().catch(() => ({}));
+          setError(errMsg ?? 'Failed to initialize checkout');
+          return;
         }
 
-        const { data: cartData, error: cartError } = await supabase?.from('cart_items')?.select('*, products(*), product_variants(*)')?.eq('user_id', user?.id)
+        const { userId, email, cartData, profile } = await res.json();
 
-        if (cartError || !cartData || cartData?.length === 0) {
-          setError('Your cart is empty. Please add items before checkout.')
-          return
+        if (!cartData || cartData.length === 0) {
+          setError('Your cart is empty. Please add items before checkout.');
+          return;
         }
 
-        setCartItems(cartData)
+        // Patch user-like object for downstream usage
+        const user = { id: userId, email };
 
-        const { data: profile, error: profileError } = await supabase?.from('user_profiles')?.select('*, addresses(*)')?.eq('id', user?.id)?.single()
+        setCartItems(cartData);
 
-        if (profileError) {
-          setError('Failed to load user profile')
-          return
+        if (!profile) {
+          setError('Failed to load user profile');
+          return;
         }
 
         const items = cartData?.map(item => ({
@@ -83,6 +88,7 @@ export default function CheckoutPage() {
 
         // Set shipping address from profile or mark for editing
         if (billingAddress) {
+          setAddressId(billingAddress?.id || null)
           setShippingAddress({
             address_line_1: billingAddress?.address_line_1 || '',
             address_line_2: billingAddress?.address_line_2 || '',
@@ -140,12 +146,15 @@ export default function CheckoutPage() {
   useEffect(() => {
     async function initializePayment() {
       if (currentStep !== 3 || !orderData || !customerInfo) return
-      
-      // Prevent re-initialization if already initialized for this session
-      if (paymentInitialized && clientSecret) {
+
+      // Guard: only run once per order — check both the ref AND whether an order
+      // was already created. This prevents StrictMode double-mount and back-nav
+      // from creating a second order row in the database.
+      if (paymentInitializedRef.current || orderData?.orderId) {
         console.log('Payment already initialized, skipping...')
         return
       }
+      paymentInitializedRef.current = true
 
       try {
         console.log('Initializing payment...', { orderData, customerInfo, shippingAddress })
@@ -199,20 +208,20 @@ export default function CheckoutPage() {
               orderNumber: paymentData?.orderNumber
             }))
             setCustomerInfo(updatedCustomerInfo)
-            setPaymentInitialized(true)
+            paymentInitializedRef.current = true
             console.log('Payment initialization successful')
           } else {
             console.error('No client secret in payment data:', paymentData)
             setError('Failed to initialize payment - no client secret returned')
           }
         } else {
-          // For GCash, ensure shipping is included in orderData
+          // For GCash, just update customer info — no server call needed here
           setOrderData(prev => ({
             ...prev,
             shipping: shippingAddress
           }))
           setCustomerInfo(updatedCustomerInfo)
-          setPaymentInitialized(true)
+          paymentInitializedRef.current = true
         }
       } catch (err) {
         console.error('Payment initialization error:', err)
@@ -222,12 +231,13 @@ export default function CheckoutPage() {
           stack: err?.stack,
           context: err?.context
         })
+        paymentInitializedRef.current = false // allow retry on failure
         setError(`Payment initialization failed: ${err?.message || 'Unknown error'}`)
       }
     }
 
     initializePayment()
-  }, [currentStep, paymentMethod])
+  }, [currentStep])
 
   const validateShippingAddress = () => {
     const errors = {}
@@ -273,36 +283,63 @@ export default function CheckoutPage() {
     }
   }
 
-  const handleContinueToPayment = () => {
+  const handleSaveAddress = async () => {
     const errors = validateShippingAddress()
-    
     if (Object.keys(errors)?.length > 0) {
       setAddressErrors(errors)
       return
     }
-    
-    setIsEditingAddress(false)
-    // Reset payment state when moving to payment step
-    setPaymentInitialized(false)
-    setClientSecret('')
+
+    setIsSavingAddress(true)
+    try {
+      const res = await fetch('/api/checkout/save-address', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          addressId,
+          firstName: customerInfo?.firstName ?? '',
+          lastName: customerInfo?.lastName ?? '',
+          ...shippingAddress,
+        }),
+      })
+      if (!res.ok) {
+        const { error: errMsg } = await res.json().catch(() => ({}))
+        throw new Error(errMsg ?? 'Failed to save address')
+      }
+      const { id } = await res.json()
+      if (id && !addressId) setAddressId(id)
+      setIsEditingAddress(false)
+    } catch (err) {
+      console.error('Failed to save address:', err)
+      setAddressErrors({ address_line_1: err.message ?? 'Failed to save address. Please try again.' })
+    } finally {
+      setIsSavingAddress(false)
+    }
+  }
+
+  const handleContinueToPayment = () => {
+    if (isEditingAddress) return
+    // Only wipe the existing payment intent when no order has been created yet.
+    // If the user goes back to step 2 just to fix the shipping address, we reuse
+    // the existing order + PaymentIntent instead of creating a duplicate.
+    if (!orderData?.orderId) {
+      paymentInitializedRef.current = false
+      setClientSecret('')
+    }
     setError('')
     setCurrentStep(3)
   }
 
   const handlePaymentSuccess = async (result) => {
     try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase?.auth?.getUser()
-      
-      if (user) {
-        await supabase?.from('cart_items')?.delete()?.eq('user_id', user?.id)
-      }
-      
-      router?.push(`/checkout/success?order=${result?.orderNumber}`)
+      await fetch('/api/checkout/clear-cart', { method: 'POST' })
     } catch (err) {
       console.error('Post-payment cleanup error:', err)
-      router?.push(`/checkout/success?order=${result?.orderNumber}`)
     }
+    // Invalidate the Next.js router cache so catalog/product pages
+    // re-fetch from the server and show updated stock immediately.
+    router?.refresh()
+    router?.push(`/checkout/success?order=${result?.orderNumber}`)
   }
 
   if (loading) {
@@ -694,12 +731,22 @@ export default function CheckoutPage() {
                     >
                       Back to Cart
                     </button>
-                    <button
-                      onClick={handleContinueToPayment}
-                      className="flex-1 py-3 px-6 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors"
-                    >
-                      Continue to Payment
-                    </button>
+                    {isEditingAddress ? (
+                      <button
+                        onClick={handleSaveAddress}
+                        disabled={isSavingAddress}
+                        className="flex-1 py-3 px-6 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        {isSavingAddress ? 'Saving...' : 'Save Address'}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleContinueToPayment}
+                        className="flex-1 py-3 px-6 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors"
+                      >
+                        Continue to Payment
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
@@ -713,7 +760,7 @@ export default function CheckoutPage() {
                       <h3 className="text-lg font-semibold text-gray-900">Shipping Address</h3>
                       <button
                         onClick={() => {
-                          setPaymentInitialized(false)
+                          paymentInitializedRef.current = false
                           setClientSecret('')
                           setError('')
                           setCurrentStep(2)
@@ -796,6 +843,7 @@ export default function CheckoutPage() {
                         currency="PHP"
                         orderData={orderData}
                         customerInfo={customerInfo}
+                        defaultPhone={shippingAddress?.phone}
                         onSuccess={handlePaymentSuccess}
                         onError={(error) => console.error('GCash payment error:', error)}
                       />

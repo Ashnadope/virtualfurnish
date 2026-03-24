@@ -28,9 +28,9 @@ export default function InventoryAlertItem({ product }) {
         </div>
       </div>
       <Link 
-        href="/product-management"
+        href={`/product-management?edit=${product?.productId}`}
         className="flex-shrink-0 p-2 rounded-md hover:bg-muted transition-fast"
-        aria-label={`Manage ${product?.name}`}
+        aria-label={`Edit ${product?.name}`}
       >
         <Icon name="PencilSquareIcon" size={20} variant="outline" className="text-muted-foreground" />
       </Link>
@@ -41,6 +41,7 @@ export default function InventoryAlertItem({ product }) {
 InventoryAlertItem.propTypes = {
   product: PropTypes?.shape({
     id: PropTypes?.number?.isRequired,
+    productId: PropTypes?.string,
     name: PropTypes?.string?.isRequired,
     sku: PropTypes?.string?.isRequired,
     stock: PropTypes?.number?.isRequired,

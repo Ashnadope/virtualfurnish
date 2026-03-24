@@ -21,10 +21,10 @@ export default function AISuggestionControls({ onGetLayoutSuggestions, onGetColo
             disabled={isProcessing}
             onMouseEnter={() => setShowTooltip('layout')}
             onMouseLeave={() => setShowTooltip(null)}
-            className="flex items-center gap-2 px-4 py-2 rounded-md bg-accent text-accent-foreground hover:bg-accent/90 transition-fast disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-3 py-2 rounded-md bg-accent text-accent-foreground hover:bg-accent/90 transition-fast disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Icon name="Square3Stack3DIcon" size={18} variant="solid" />
-            <span className="font-body text-sm font-medium">Layout Suggestions</span>
+            <span className="hidden sm:inline font-body text-sm font-medium">Layout Suggestions</span>
           </button>
           {showTooltip === 'layout' && (
             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-popover text-popover-foreground text-xs font-body rounded-md shadow-elevated whitespace-nowrap z-overlay">
@@ -39,10 +39,10 @@ export default function AISuggestionControls({ onGetLayoutSuggestions, onGetColo
             disabled={isProcessing}
             onMouseEnter={() => setShowTooltip('color')}
             onMouseLeave={() => setShowTooltip(null)}
-            className="flex items-center gap-2 px-4 py-2 rounded-md border border-accent text-accent hover:bg-accent/10 transition-fast disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-3 py-2 rounded-md border border-accent text-accent hover:bg-accent/10 transition-fast disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Icon name="SwatchIcon" size={18} variant="solid" />
-            <span className="font-body text-sm font-medium">Color Matching</span>
+            <span className="hidden sm:inline font-body text-sm font-medium">Color Matching</span>
           </button>
           {showTooltip === 'color' && (
             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-popover text-popover-foreground text-xs font-body rounded-md shadow-elevated whitespace-nowrap z-overlay">

@@ -14,7 +14,7 @@ export default function AdminDashboardInteractive({ initialData }) {
   const [activeTab, setActiveTab] = useState('all');
 
   const filterActivities = () => {
-    if (activeTab === 'all') return initialData?.recentActivities;
+    if (activeTab === 'all') return (initialData?.recentActivities ?? []).slice(0, 8);
     return initialData?.recentActivities?.filter(activity => activity?.type === activeTab);
   };
 
@@ -120,7 +120,7 @@ export default function AdminDashboardInteractive({ initialData }) {
         </div>
       </div>
       {/* Sales Chart */}
-      <SalesChart data={initialData?.salesData} />
+      <SalesChart dataByRange={initialData?.salesDataByRange} />
       {/* Pending Orders */}
       <div className="bg-surface rounded-lg border border-border shadow-card">
         <div className="p-6 border-b border-border">
@@ -148,7 +148,7 @@ AdminDashboardInteractive.propTypes = {
   initialData: PropTypes?.shape({
     metrics: PropTypes?.arrayOf(
       PropTypes?.shape({
-        id: PropTypes?.number?.isRequired,
+        id: PropTypes?.oneOfType([PropTypes?.number, PropTypes?.string])?.isRequired,
         title: PropTypes?.string?.isRequired,
         value: PropTypes?.string?.isRequired,
         change: PropTypes?.string,
@@ -159,7 +159,7 @@ AdminDashboardInteractive.propTypes = {
     )?.isRequired,
     quickActions: PropTypes?.arrayOf(
       PropTypes?.shape({
-        id: PropTypes?.number?.isRequired,
+        id: PropTypes?.oneOfType([PropTypes?.number, PropTypes?.string])?.isRequired,
         title: PropTypes?.string?.isRequired,
         description: PropTypes?.string?.isRequired,
         icon: PropTypes?.string?.isRequired,
@@ -169,7 +169,7 @@ AdminDashboardInteractive.propTypes = {
     )?.isRequired,
     recentActivities: PropTypes?.arrayOf(
       PropTypes?.shape({
-        id: PropTypes?.number?.isRequired,
+        id: PropTypes?.oneOfType([PropTypes?.number, PropTypes?.string])?.isRequired,
         type: PropTypes?.string?.isRequired,
         title: PropTypes?.string?.isRequired,
         description: PropTypes?.string?.isRequired,
@@ -179,7 +179,7 @@ AdminDashboardInteractive.propTypes = {
     )?.isRequired,
     inventoryAlerts: PropTypes?.arrayOf(
       PropTypes?.shape({
-        id: PropTypes?.number?.isRequired,
+        id: PropTypes?.oneOfType([PropTypes?.number, PropTypes?.string])?.isRequired,
         name: PropTypes?.string?.isRequired,
         sku: PropTypes?.string?.isRequired,
         stock: PropTypes?.number?.isRequired,
@@ -187,15 +187,14 @@ AdminDashboardInteractive.propTypes = {
         alt: PropTypes?.string?.isRequired,
       })
     )?.isRequired,
-    salesData: PropTypes?.arrayOf(
-      PropTypes?.shape({
-        date: PropTypes?.string?.isRequired,
-        revenue: PropTypes?.number?.isRequired,
-      })
-    )?.isRequired,
+    salesDataByRange: PropTypes?.shape({
+      week:  PropTypes?.arrayOf(PropTypes?.shape({ date: PropTypes?.string, revenue: PropTypes?.number })),
+      month: PropTypes?.arrayOf(PropTypes?.shape({ date: PropTypes?.string, revenue: PropTypes?.number })),
+      year:  PropTypes?.arrayOf(PropTypes?.shape({ date: PropTypes?.string, revenue: PropTypes?.number })),
+    }),
     pendingOrders: PropTypes?.arrayOf(
       PropTypes?.shape({
-        id: PropTypes?.number?.isRequired,
+        id: PropTypes?.oneOfType([PropTypes?.number, PropTypes?.string])?.isRequired,
         orderNumber: PropTypes?.string?.isRequired,
         customerName: PropTypes?.string?.isRequired,
         items: PropTypes?.number?.isRequired,

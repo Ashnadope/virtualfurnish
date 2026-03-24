@@ -40,7 +40,7 @@ RoomDesignerStats.propTypes = {
       label: PropTypes?.string?.isRequired,
       description: PropTypes?.string?.isRequired,
       value: PropTypes?.string?.isRequired,
-      change: PropTypes?.string,
+      change: PropTypes?.string,       // nullable — some stats have no comparison
       changeType: PropTypes?.oneOf(['positive', 'negative', 'neutral'])
     })
   )?.isRequired

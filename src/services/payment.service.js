@@ -72,11 +72,6 @@ export const paymentService = {
     })
 
     try {
-      // Add timeout wrapper
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Request timeout after 30 seconds')), 30000)
-      )
-
       const invokePromise = supabase?.functions?.invoke('process-gcash-payment', {
         body: {
           orderData,
@@ -84,8 +79,14 @@ export const paymentService = {
         }
       })
 
-      const response = await Promise.race([invokePromise, timeoutPromise])
-      const { data, error } = response
+      // 45-second safety timeout — if the edge function never responds, surface an error
+      // instead of hanging the UI indefinitely.  Safe because the edge function now does an
+      // idempotent update (not a blind insert), so retrying won't create duplicate orders.
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('GCash payment timed out. Please try again.')), 45_000)
+      )
+
+      const { data, error } = await Promise.race([invokePromise, timeoutPromise])
 
       if (error) {
         console.error('GCash payment error:', error)

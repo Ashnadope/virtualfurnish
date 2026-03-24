@@ -33,7 +33,7 @@
     "warning": "🚨 CRITICAL: DO NOT REMOVE OR MODIFY ABOVE DEPENDENCIES - Required for Next.js app functionality"
   },
   "scripts": {
-    "dev": "cross-env NODE_OPTIONS='--max-old-space-size=2048' next dev -p 4028",
+    "dev": "cross-env NODE_OPTIONS='--max-old-space-size=2048' next dev -p 4028 --hostname 0.0.0.0",
     "build": "cross-env NODE_OPTIONS='--max-old-space-size=2048' next build",
     "start": "next start -p 4028",
     "lint": "next lint",

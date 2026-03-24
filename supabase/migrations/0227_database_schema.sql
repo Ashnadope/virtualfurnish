@@ -1,0 +1,201 @@
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
+
+CREATE TABLE public.addresses (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid,
+  type text CHECK (type = ANY (ARRAY['shipping'::text, 'billing'::text])),
+  first_name text NOT NULL,
+  last_name text NOT NULL,
+  address_line_1 text NOT NULL,
+  address_line_2 text,
+  city text NOT NULL,
+  state text NOT NULL,
+  postal_code text NOT NULL,
+  country text NOT NULL DEFAULT 'PH'::text,
+  phone text,
+  is_default boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT addresses_pkey PRIMARY KEY (id),
+  CONSTRAINT addresses_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_profiles(id)
+);
+CREATE TABLE public.cart_items (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid,
+  product_id uuid,
+  variant_id uuid,
+  quantity integer NOT NULL DEFAULT 1,
+  price numeric NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT cart_items_pkey PRIMARY KEY (id),
+  CONSTRAINT cart_items_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_profiles(id),
+  CONSTRAINT cart_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
+  CONSTRAINT cart_items_variant_id_fkey FOREIGN KEY (variant_id) REFERENCES public.product_variants(id)
+);
+CREATE TABLE public.order_items (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  order_id uuid,
+  product_id uuid,
+  variant_id uuid,
+  variant_name text,
+  sku text,
+  name text NOT NULL,
+  brand text,
+  price numeric NOT NULL,
+  quantity integer NOT NULL,
+  total numeric NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT order_items_pkey PRIMARY KEY (id),
+  CONSTRAINT order_items_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
+  CONSTRAINT order_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
+  CONSTRAINT order_items_variant_id_fkey FOREIGN KEY (variant_id) REFERENCES public.product_variants(id)
+);
+CREATE TABLE public.orders (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid,
+  order_number text NOT NULL UNIQUE,
+  status text DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'processing'::text, 'shipped'::text, 'delivered'::text, 'cancelled'::text, 'disputed'::text])),
+  payment_status text DEFAULT 'pending'::text CHECK (payment_status = ANY (ARRAY['pending'::text, 'succeeded'::text, 'failed'::text, 'cancelled'::text, 'refund_pending'::text, 'refunded'::text])),
+  payment_method text CHECK (payment_method = ANY (ARRAY['card'::text, 'gcash'::text])),
+  payment_intent_id text UNIQUE,
+  subtotal numeric NOT NULL,
+  tax_amount numeric DEFAULT 0,
+  shipping_amount numeric DEFAULT 0,
+  discount_amount numeric DEFAULT 0,
+  total_amount numeric NOT NULL,
+  currency text DEFAULT 'PHP'::text,
+  shipping_address jsonb,
+  billing_address jsonb,
+  notes text,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT orders_pkey PRIMARY KEY (id),
+  CONSTRAINT orders_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_profiles(id)
+);
+CREATE TABLE public.payment_methods (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid,
+  stripe_payment_method_id text UNIQUE,
+  type text NOT NULL,
+  card_brand text,
+  card_last_four text,
+  card_exp_month integer,
+  card_exp_year integer,
+  is_default boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT payment_methods_pkey PRIMARY KEY (id),
+  CONSTRAINT payment_methods_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_profiles(id)
+);
+CREATE TABLE public.payment_transactions (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  order_id uuid,
+  payment_intent_id text,
+  stripe_charge_id text,
+  gcash_reference_id text,
+  amount numeric NOT NULL,
+  currency text DEFAULT 'PHP'::text,
+  status text NOT NULL,
+  transaction_type text DEFAULT 'payment'::text CHECK (transaction_type = ANY (ARRAY['payment'::text, 'refund'::text, 'dispute'::text])),
+  gateway text DEFAULT 'stripe'::text CHECK (gateway = ANY (ARRAY['stripe'::text, 'gcash'::text])),
+  gateway_transaction_id text UNIQUE,
+  metadata jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT payment_transactions_pkey PRIMARY KEY (id),
+  CONSTRAINT payment_transactions_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id)
+);
+CREATE TABLE public.product_variants (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  product_id uuid,
+  name text NOT NULL,
+  sku text UNIQUE,
+  price numeric,
+  stock_quantity integer DEFAULT 0,
+  dimensions text,
+  color text,
+  material text,
+  created_at timestamp with time zone DEFAULT now(),
+  image_url text,
+  weight text,
+  is_active boolean DEFAULT true,
+  CONSTRAINT product_variants_pkey PRIMARY KEY (id),
+  CONSTRAINT product_variants_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id)
+);
+CREATE TABLE public.products (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  name text NOT NULL,
+  description text,
+  brand text,
+  category text,
+  base_price numeric NOT NULL,
+  sku text UNIQUE,
+  image_url text,
+  is_active boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  dimensions text,
+  weight text,
+  image_alt text,
+  material text,
+  color text,
+  stock_quantity integer DEFAULT 0,
+  is_archived boolean NOT NULL DEFAULT false,
+  CONSTRAINT products_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.room_designs (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL,
+  name text NOT NULL,
+  description text,
+  room_image_url text,
+  render_url text,
+  design_data jsonb NOT NULL DEFAULT '{"furniture": [], "roomDimensions": {}}'::jsonb,
+  is_favorite boolean DEFAULT false,
+  is_public boolean DEFAULT false,
+  share_token text UNIQUE,
+  view_count integer DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT room_designs_pkey PRIMARY KEY (id),
+  CONSTRAINT room_designs_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_profiles(id)
+);
+CREATE TABLE public.support_messages (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  sender_id uuid NOT NULL,
+  sender_role text NOT NULL CHECK (sender_role = ANY (ARRAY['customer'::text, 'admin'::text])),
+  message text NOT NULL CHECK (char_length(message) >= 1 AND char_length(message) <= 5000),
+  is_read_by_customer boolean NOT NULL DEFAULT false,
+  is_read_by_admin boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  order_number text,
+  CONSTRAINT support_messages_pkey PRIMARY KEY (id),
+  CONSTRAINT support_messages_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT support_messages_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.user_profiles (
+  id uuid NOT NULL,
+  first_name text,
+  last_name text,
+  email text,
+  phone text,
+  stripe_customer_id text UNIQUE,
+  total_orders integer DEFAULT 0,
+  total_spent numeric DEFAULT 0,
+  loyalty_points integer DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  role text NOT NULL DEFAULT 'customer'::text CHECK (role = ANY (ARRAY['admin'::text, 'customer'::text])),
+  CONSTRAINT user_profiles_pkey PRIMARY KEY (id),
+  CONSTRAINT user_profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.wishlist_items (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  product_id uuid NOT NULL,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  variant_id uuid,
+  CONSTRAINT wishlist_items_pkey PRIMARY KEY (id),
+  CONSTRAINT wishlist_items_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_profiles(id),
+  CONSTRAINT wishlist_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
+  CONSTRAINT wishlist_items_variant_id_fkey FOREIGN KEY (variant_id) REFERENCES public.product_variants(id)
+);

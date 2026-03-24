@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import Sidebar from '@/components/common/Sidebar';
 import Header from '@/components/common/Header';
 import Breadcrumb from '@/components/common/Breadcrumb';
@@ -49,7 +50,9 @@ export default async function ProductManagementPage() {
             <Breadcrumb />
           </div>
           
-          <ProductManagementInteractive initialProducts={formattedProducts} />
+          <Suspense fallback={null}>
+            <ProductManagementInteractive initialProducts={formattedProducts} />
+          </Suspense>
         </div>
       </main>
     </>);

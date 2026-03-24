@@ -15,7 +15,7 @@ import AppImage from '@/components/ui/AppImage';
 export const dynamic = 'force-dynamic';
 
 export default function WishlistPage() {
-  const { user } = useAuth();
+  const { user, isHydrated } = useAuth();
   const router = useRouter();
   const [wishlistItems, setWishlistItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -25,11 +25,18 @@ export default function WishlistPage() {
   const [filterCategory, setFilterCategory] = useState('all');
   const [addingToCart, setAddingToCart] = useState(null);
 
+  // Stop spinner if auth finishes with no logged-in user
   useEffect(() => {
-    if (user?.id) {
+    if (isHydrated && !user?.id) {
+      setLoading(false);
+    }
+  }, [isHydrated, user?.id]);
+
+  useEffect(() => {
+    if (user?.id && isHydrated) {
       loadWishlist();
     }
-  }, [user?.id]);
+  }, [user?.id, isHydrated]);
 
   const loadWishlist = async () => {
     try {

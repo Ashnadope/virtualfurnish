@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
+import { flushSync } from 'react-dom';
 import PropTypes from 'prop-types';
 import html2canvas from 'html2canvas';
 import Icon from '@/components/ui/AppIcon';
@@ -21,6 +22,7 @@ const CanvasArea = forwardRef(function CanvasArea({
   colorPalette
 }, ref) {
   const [colorPaletteDismissed, setColorPaletteDismissed] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
   // Reset dismissed state when the overlay is re-triggered
   useEffect(() => {
     if (showAISuggestions && aiSuggestionType === 'color') {
@@ -40,6 +42,8 @@ const CanvasArea = forwardRef(function CanvasArea({
   const [isDragOver, setIsDragOver] = useState(false);
   const canvasRef = useRef(null);
   const imageContainerRef = useRef(null);
+  const longPressTimerRef = useRef(null);
+  const touchStartPosRef = useRef(null);
 
   // Expose capture function to parent via ref
   useImperativeHandle(ref, () => ({
@@ -49,29 +53,22 @@ const CanvasArea = forwardRef(function CanvasArea({
       }
 
       try {
-        console.log('Capturing canvas...');
-        
-        // Capture the image container with furniture
+        // Hide selection UI before capture so the exported image is clean
+        flushSync(() => setIsCapturing(true));
+
         const canvas = await html2canvas(imageContainerRef.current, {
           backgroundColor: null,
-          scale: 2, // Higher quality
+          scale: 2,
           useCORS: true,
           allowTaint: true,
           logging: false
         });
 
-        console.log('Canvas captured, converting to blob...');
-        
-        // Convert canvas to blob
         return new Promise((resolve, reject) => {
           canvas.toBlob(
             (blob) => {
-              if (blob) {
-                console.log('Blob created:', blob.size, 'bytes');
-                resolve(blob);
-              } else {
-                reject(new Error('Failed to create blob'));
-              }
+              if (blob) resolve(blob);
+              else reject(new Error('Failed to create blob'));
             },
             'image/png',
             0.95
@@ -80,6 +77,8 @@ const CanvasArea = forwardRef(function CanvasArea({
       } catch (error) {
         console.error('Error capturing canvas:', error);
         throw error;
+      } finally {
+        setIsCapturing(false);
       }
     }
   }));
@@ -253,18 +252,24 @@ const CanvasArea = forwardRef(function CanvasArea({
         initialScale: furniture?.scale || 1
       });
     } else if (e?.touches?.length === 1) {
+      const touch = e?.touches?.[0];
+      touchStartPosRef.current = { x: touch?.clientX, y: touch?.clientY };
       setIsDraggingFurniture(true);
       setDraggedFurnitureId(furnitureId);
-      onFurnitureSelect(furnitureId);
-      
+      // Select without opening properties — long press (500 ms) will open the panel
+      onFurnitureSelect(furnitureId, false);
+
       const furniture = placedFurniture?.find(f => f?.id === furnitureId);
       if (furniture && imageContainerRef?.current) {
         const rect = imageContainerRef?.current?.getBoundingClientRect();
-        const touch = e?.touches?.[0];
         const offsetX = touch?.clientX - rect?.left - (furniture?.position?.x / 100) * rect?.width;
         const offsetY = touch?.clientY - rect?.top - (furniture?.position?.y / 100) * rect?.height;
         setFurnitureDragStart({ offsetX, offsetY, rect });
       }
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = setTimeout(() => {
+        onFurnitureSelect(furnitureId, true);
+      }, 500);
     }
   };
 
@@ -293,8 +298,14 @@ const CanvasArea = forwardRef(function CanvasArea({
         }
       }
     } else if (e?.touches?.length === 1 && isDraggingFurniture && draggedFurnitureId && furnitureDragStart && imageContainerRef?.current) {
-      const rect = imageContainerRef?.current?.getBoundingClientRect();
       const touch = e?.touches?.[0];
+      // Cancel long-press if the finger moved significantly
+      if (touchStartPosRef.current) {
+        const dx = touch?.clientX - touchStartPosRef.current.x;
+        const dy = touch?.clientY - touchStartPosRef.current.y;
+        if (Math.hypot(dx, dy) > 10) clearTimeout(longPressTimerRef.current);
+      }
+      const rect = imageContainerRef?.current?.getBoundingClientRect();
       const newX = ((touch?.clientX - rect?.left - furnitureDragStart?.offsetX) / rect?.width) * 100;
       const newY = ((touch?.clientY - rect?.top - furnitureDragStart?.offsetY) / rect?.height) * 100;
       
@@ -306,6 +317,8 @@ const CanvasArea = forwardRef(function CanvasArea({
   };
 
   const handleFurnitureTouchEnd = () => {
+    clearTimeout(longPressTimerRef.current);
+    touchStartPosRef.current = null;
     setIsDraggingFurniture(false);
     setDraggedFurnitureId(null);
     setFurnitureDragStart(null);
@@ -398,7 +411,7 @@ const CanvasArea = forwardRef(function CanvasArea({
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
-        style={{ cursor: isPanning ? 'grabbing' : 'grab' }}
+        style={{ cursor: isPanning ? 'grabbing' : 'grab', touchAction: 'none' }}
       >
         {uploadedImage ? (
           <div 
@@ -410,7 +423,8 @@ const CanvasArea = forwardRef(function CanvasArea({
             }}
           >
             <div 
-              ref={imageContainerRef} 
+              ref={imageContainerRef}
+              data-canvas-image-container="true"
               className={`relative ${isDragOver ? 'ring-4 ring-primary/50 ring-inset' : ''}`}
             >
               <AppImage
@@ -468,9 +482,11 @@ const CanvasArea = forwardRef(function CanvasArea({
                     isDraggingFurniture && draggedFurnitureId === furniture?.id 
                       ? 'cursor-grabbing' :'cursor-grab'
                   } ${
-                    selectedFurnitureId === furniture?.id 
-                      ? 'ring-2 ring-primary shadow-lg' 
-                      : 'hover:ring-2 hover:ring-primary/50'
+                    !isCapturing && selectedFurnitureId === furniture?.id
+                      ? 'ring-2 ring-primary shadow-lg'
+                      : !isCapturing
+                        ? 'hover:ring-2 hover:ring-primary/50'
+                        : ''
                   } transition-shadow`}
                   style={{
                     left: `${furniture?.position?.x}%`,
@@ -493,7 +509,7 @@ const CanvasArea = forwardRef(function CanvasArea({
                     alt={furniture?.alt}
                     className="w-full h-full object-contain pointer-events-none"
                   />
-                  {selectedFurnitureId === furniture?.id && (
+                  {!isCapturing && selectedFurnitureId === furniture?.id && (
                     <>
                       <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground px-2 py-1 rounded text-xs font-body whitespace-nowrap z-10">
                         {furniture?.name}
@@ -542,6 +558,7 @@ const CanvasArea = forwardRef(function CanvasArea({
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-md overflow-hidden bg-muted">
                 <AppImage
+                  key={selectedFurniture?.id ?? selectedFurniture?.image}
                   src={selectedFurniture?.image}
                   alt={selectedFurniture?.alt}
                   className="w-full h-full object-cover"

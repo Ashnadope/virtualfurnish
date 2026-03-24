@@ -61,14 +61,10 @@ function PaymentFormInner({
         if (onError) onError(stripeError)
       } else if (paymentIntent) {
         if (paymentIntent?.status === 'succeeded') {
-          const confirmData = await paymentService?.confirmPayment(paymentIntent?.id)
-          
           const successResult = {
             paymentIntent,
             orderId: orderData?.orderId,
             orderNumber: orderData?.orderNumber,
-            orderData: confirmData,
-            warning: confirmData?.error ? 'Payment processed but confirmation failed. Please contact support.' : undefined
           }
 
           setSuccessData(successResult)

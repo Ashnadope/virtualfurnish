@@ -9,7 +9,7 @@ import { orderService } from '@/services/order.service';
 
 export default function Sidebar({ userRole = 'customer', isCollapsed = false }) {
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [orderCount, setOrderCount] = useState(0);
 
@@ -58,15 +58,14 @@ export default function Sidebar({ userRole = 'customer', isCollapsed = false }) 
 
   const toggleMobile = () => setIsMobileOpen(!isMobileOpen);
 
+  useEffect(() => {
+    const handler = () => setIsMobileOpen(true);
+    window.addEventListener('open-mobile-sidebar', handler);
+    return () => window.removeEventListener('open-mobile-sidebar', handler);
+  }, []);
+
   return (
     <>
-      <button
-        onClick={toggleMobile}
-        className="lg:hidden fixed top-4 left-4 z-overlay p-2 rounded-md bg-surface shadow-card"
-        aria-label="Toggle navigation"
-      >
-        <Icon name="Bars3Icon" size={24} variant="outline" />
-      </button>
       <aside
         className={`
           fixed top-0 left-0 h-full bg-surface border-r border-border z-sidebar
@@ -120,13 +119,16 @@ export default function Sidebar({ userRole = 'customer', isCollapsed = false }) 
           </nav>
 
           <div className="px-3 py-4 border-t border-border">
-            <Link
-              href="/login"
-              className="flex items-center gap-3 px-3 h-nav-item rounded-md text-foreground hover:bg-muted transition-fast font-body text-nav"
+            <button
+              onClick={async () => {
+                await signOut();
+                window.location.href = '/';
+              }}
+              className="w-full flex items-center gap-3 px-3 h-nav-item rounded-md text-foreground hover:bg-muted transition-fast font-body text-nav"
             >
               <Icon name="ArrowRightOnRectangleIcon" size={20} variant="outline" />
               {!isCollapsed && <span>Logout</span>}
-            </Link>
+            </button>
           </div>
         </div>
       </aside>

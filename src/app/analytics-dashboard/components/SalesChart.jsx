@@ -7,16 +7,28 @@ export default function SalesChart({ data, title }) {
       <h3 className="font-heading text-lg font-semibold text-foreground mb-6">{title}</h3>
       <div className="w-full h-80" aria-label={`${title} Bar Chart`}>
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data}>
+          <BarChart data={data} margin={{ top: 4, right: 40, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
             <XAxis 
               dataKey="month" 
               stroke="#718096"
               style={{ fontSize: '12px', fontFamily: 'Source Sans 3' }}
             />
+            {/* Left axis — Revenue */}
             <YAxis 
-              stroke="#718096"
-              style={{ fontSize: '12px', fontFamily: 'Source Sans 3' }}
+              yAxisId="revenue"
+              stroke="#1E3A5F"
+              style={{ fontSize: '11px', fontFamily: 'Source Sans 3' }}
+              tickFormatter={(v) => v >= 1000 ? `₱${(v / 1000).toFixed(0)}k` : `₱${v}`}
+            />
+            {/* Right axis — Orders count */}
+            <YAxis
+              yAxisId="orders"
+              orientation="right"
+              stroke="#D4704A"
+              style={{ fontSize: '11px', fontFamily: 'Source Sans 3' }}
+              allowDecimals={false}
+              tickFormatter={(v) => v}
             />
             <Tooltip 
               contentStyle={{ 
@@ -25,6 +37,11 @@ export default function SalesChart({ data, title }) {
                 borderRadius: '8px',
                 fontFamily: 'Source Sans 3'
               }}
+              formatter={(value, name) =>
+                name === 'Revenue (₱)'
+                  ? [`₱${Number(value).toLocaleString('en-PH')}`, name]
+                  : [value, name]
+              }
             />
             <Legend 
               wrapperStyle={{ 
@@ -32,8 +49,8 @@ export default function SalesChart({ data, title }) {
                 fontSize: '14px'
               }}
             />
-            <Bar dataKey="revenue" fill="#1E3A5F" name="Revenue (₱)" radius={[8, 8, 0, 0]} />
-            <Bar dataKey="orders" fill="#D4704A" name="Orders" radius={[8, 8, 0, 0]} />
+            <Bar yAxisId="revenue" dataKey="revenue" fill="#1E3A5F" name="Revenue (₱)" radius={[8, 8, 0, 0]} />
+            <Bar yAxisId="orders" dataKey="orders" fill="#D4704A" name="Orders" radius={[8, 8, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>

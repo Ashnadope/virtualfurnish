@@ -1,39 +1,26 @@
-'use client';
-
+import { redirect } from 'next/navigation';
+import { createClient } from '@/lib/supabase/server';
 import Sidebar from '@/components/common/Sidebar';
 import Header from '@/components/common/Header';
 import Breadcrumb from '@/components/common/Breadcrumb';
 import SavedDesigns from '@/app/customer-dashboard/components/SavedDesigns';
-import { useAuth } from '@/contexts/AuthContext';
-import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/client';
 
-export default function MyDesigns() {
-  const { user } = useAuth();
-  const [userName, setUserName] = useState('Customer');
+// Force dynamic rendering — page is always user-specific
+export const dynamic = 'force-dynamic';
 
-  useEffect(() => {
-    const loadUserData = async () => {
-      try {
-        const supabase = createClient();
-        const { data, error } = await supabase
-          .from('user_profiles')
-          .select('first_name')
-          .eq('id', user.id)
-          .single();
+export default async function MyDesigns() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
-        if (data?.first_name) {
-          setUserName(data.first_name);
-        }
-      } catch (error) {
-        console.error('Error loading user data:', error);
-      }
-    };
+  if (!user) redirect('/login');
 
-    if (user?.id) {
-      loadUserData();
-    }
-  }, [user?.id]);
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('first_name')
+    .eq('id', user.id)
+    .single();
+
+  const userName = profile?.first_name || user.email?.split('@')?.[0] || 'Customer';
 
   return (
     <div className="min-h-screen bg-background">
@@ -44,7 +31,7 @@ export default function MyDesigns() {
           <div className="mb-6">
             <Breadcrumb />
           </div>
-          
+
           <SavedDesigns showAll={true} />
         </div>
       </main>

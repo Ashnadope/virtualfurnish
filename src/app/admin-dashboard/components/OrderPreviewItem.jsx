@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import PropTypes from 'prop-types';
 
 
@@ -35,12 +36,13 @@ export default function OrderPreviewItem({ order }) {
           <span>{order?.date}</span>
         </div>
       </div>
-      <button 
+      <Link
+        href={`/admin-orders?q=${encodeURIComponent(order?.orderNumber)}`}
         className="flex-shrink-0 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-fast font-body text-sm font-medium"
         aria-label={`Process order ${order?.orderNumber}`}
       >
         Process
-      </button>
+      </Link>
     </div>
   );
 }

@@ -37,7 +37,7 @@ export function AuthProvider({ children }) {
     return 'customer';
   };
 
-  // Load user profile from database
+  // Load user profile from database — creates it if missing (e.g. after email confirmation)
   const loadUserProfile = async (userId) => {
     if (!userId) return;
     
@@ -49,7 +49,27 @@ export function AuthProvider({ children }) {
         .single();
       
       if (error) {
-        // This is not a critical error, but good to log
+        if (error.code === 'PGRST116') {
+          // No profile row yet — create it from auth user metadata
+          const { data: { user: authUser } } = await supabase.auth.getUser();
+          const meta = authUser?.user_metadata || {};
+          const { data: newProfile, error: insertError } = await supabase
+            .from('user_profiles')
+            .insert([{
+              id: userId,
+              email: authUser.email,
+              first_name: meta.first_name || '',
+              last_name: meta.last_name || '',
+              role: 'customer',
+              total_orders: 0,
+              total_spent: 0,
+              loyalty_points: 0,
+            }])
+            .select()
+            .single();
+          if (!insertError && newProfile) setUserProfile(newProfile);
+          return;
+        }
         console.warn('Could not fetch user profile:', error.message);
         return;
       }
@@ -209,6 +229,7 @@ export function AuthProvider({ children }) {
           email,
           password,
           options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
             data: {
               first_name: metadata?.first_name || '',
               last_name: metadata?.last_name || '',
@@ -234,11 +255,15 @@ export function AuthProvider({ children }) {
       }
     },
     signIn: async (email, password) => {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
-      return { data, error };
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password
+        });
+        return { data, error };
+      } catch (err) {
+        return { data: null, error: err };
+      }
     },
     signOut: async () => {
       try {
@@ -262,8 +287,14 @@ export function AuthProvider({ children }) {
       }
     },
     resetPassword: async (email) => {
-      const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`
+      const { data, error } = await supabase.auth.resetPasswordForEmail(email);
+      return { data, error };
+    },
+    verifyResetCode: async (email, token) => {
+      const { data, error } = await supabase.auth.verifyOtp({
+        email,
+        token,
+        type: 'recovery'
       });
       return { data, error };
     },

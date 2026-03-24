@@ -1,13 +1,36 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import Icon from '@/components/ui/AppIcon';
 import AppImage from '@/components/ui/AppImage';
 
 export default function PropertiesPanel({ selectedFurniture, onAddToCart, onClose }) {
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    // Trigger slide-in animation after mount
+    const t = setTimeout(() => setIsVisible(true), 10);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Lock body scroll while panel is open on mobile
+  useEffect(() => {
+    const isSmall = window.innerWidth < 1024;
+    if (isSmall) {
+      document.body.style.overflow = 'hidden';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, []);
+
   if (!selectedFurniture) {
     return (
-      <div className="w-80 bg-surface border-l border-border p-6 flex flex-col items-center justify-center gap-3">
+      <div className={`
+        fixed top-16 left-0 h-[calc(100vh-4rem)] w-80 z-[160] bg-surface border-r border-border flex flex-col items-center justify-center gap-3 overflow-hidden
+        transition-transform duration-300 ease-in-out
+        ${isVisible ? 'translate-x-0' : '-translate-x-full'}
+        lg:relative lg:top-auto lg:left-auto lg:h-auto lg:w-80 lg:translate-x-0 lg:z-auto lg:border-r-0 lg:border-l
+      `}>
         <Icon name="InformationCircleIcon" size={48} variant="outline" className="text-muted-foreground" />
         <p className="font-body text-sm text-muted-foreground text-center">
           Select a furniture item to view details
@@ -21,7 +44,19 @@ export default function PropertiesPanel({ selectedFurniture, onAddToCart, onClos
   };
 
   return (
-    <div className="w-80 bg-surface border-l border-border flex flex-col">
+    <>
+      {/* Backdrop — mobile only */}
+      <div
+        className="lg:hidden fixed inset-0 bg-foreground/30 z-[155]"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <div className={`
+        fixed top-16 left-0 h-[calc(100vh-4rem)] w-80 z-[160] bg-surface border-r border-border flex flex-col overflow-hidden
+        transition-transform duration-300 ease-in-out
+        ${isVisible ? 'translate-x-0' : '-translate-x-full'}
+        lg:relative lg:top-auto lg:left-auto lg:h-auto lg:w-80 lg:translate-x-0 lg:z-auto lg:border-r-0 lg:border-l
+      `}>
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <h3 className="font-heading font-semibold text-sm text-foreground">Properties</h3>
         <button
@@ -59,7 +94,11 @@ export default function PropertiesPanel({ selectedFurniture, onAddToCart, onClos
 
           <div className="flex items-center justify-between">
             <span className="font-body text-sm text-muted-foreground">Dimensions</span>
-            <span className="font-body text-sm text-foreground">{selectedFurniture?.dimensions}</span>
+            <span className="font-body text-sm text-foreground">
+              {typeof selectedFurniture?.dimensions === 'object' && selectedFurniture?.dimensions !== null
+                ? `${selectedFurniture.dimensions.width ?? ''}W × ${selectedFurniture.dimensions.length ?? ''}L × ${selectedFurniture.dimensions.height ?? ''}H cm`.replace(/undefined/g, '?')
+                : selectedFurniture?.dimensions}
+            </span>
           </div>
 
           <div className="flex items-center justify-between">
@@ -94,6 +133,7 @@ export default function PropertiesPanel({ selectedFurniture, onAddToCart, onClos
         </div>
       </div>
     </div>
+    </>
   );
 }
 
@@ -112,3 +152,4 @@ PropertiesPanel.propTypes = {
   onAddToCart: PropTypes?.func?.isRequired,
   onClose: PropTypes?.func?.isRequired
 };
+

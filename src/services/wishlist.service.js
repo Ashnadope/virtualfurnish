@@ -114,6 +114,32 @@ export const wishlistService = {
   },
 
   /**
+   * Check if a product/variant is in the user's wishlist and return the item id.
+   * Returns { inWishlist: boolean, itemId: string|null }
+   */
+  async getWishlistItemId(userId, productId, variantId = null) {
+    try {
+      const supabase = createClient();
+
+      let query = supabase
+        .from('wishlist_items')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('product_id', productId);
+      if (variantId) {
+        query = query.eq('variant_id', variantId);
+      }
+      const { data, error } = await query.maybeSingle();
+
+      if (error) throw error;
+      return { inWishlist: !!data, itemId: data?.id ?? null };
+    } catch (error) {
+      console.error('Error checking wishlist status:', error);
+      return { inWishlist: false, itemId: null };
+    }
+  },
+
+  /**
    * Check if a product/variant is in the user's wishlist
    */
   async isInWishlist(userId, productId, variantId = null) {

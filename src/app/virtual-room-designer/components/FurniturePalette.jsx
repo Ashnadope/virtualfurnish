@@ -1,14 +1,35 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import Icon from '@/components/ui/AppIcon';
 import AppImage from '@/components/ui/AppImage';
 
-export default function FurniturePalette({ furnitureItems, onAddFurniture }) {
+export default function FurniturePalette({ furnitureItems, onAddFurniture, isOpen: externalIsOpen, onToggle }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [isPaletteOpen, setIsPaletteOpen] = useState(true);
+  const [internalOpen, setInternalOpen] = useState(false);
+  // Touch drag state for drag-from-catalog-to-canvas on mobile
+  const touchDragStateRef = useRef(null); // { item, startX, startY, ghost }
+  const didTouchDragRef = useRef(false);
+
+  const isPaletteOpen = externalIsOpen !== undefined ? externalIsOpen : internalOpen;
+
+  const setIsPaletteOpen = (val) => {
+    setInternalOpen(val);
+    onToggle?.(val);
+  };
+
+  // Lock body scroll while palette is open on mobile
+  useEffect(() => {
+    const isSmall = window.innerWidth < 1024;
+    if (isPaletteOpen && isSmall) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [isPaletteOpen]);
 
   // Dynamically extract unique categories from furniture items
   const categories = useMemo(() => {
@@ -27,7 +48,88 @@ export default function FurniturePalette({ furnitureItems, onAddFurniture }) {
   });
 
   const handleAddToCanvas = (furniture) => {
+    if (didTouchDragRef.current) {
+      didTouchDragRef.current = false;
+      return; // drag already placed item on canvas
+    }
     onAddFurniture(furniture);
+    setIsPaletteOpen(false); // close palette overlay on mobile after tap-to-add
+  };
+
+  // Build and inject a ghost element that follows the finger during cross-component touch drag
+  const createGhostElement = (item, clientX, clientY) => {
+    const ghost = document.createElement('div');
+    Object.assign(ghost.style, {
+      position: 'fixed',
+      left: `${clientX - 35}px`,
+      top: `${clientY - 35}px`,
+      width: '70px',
+      height: '70px',
+      borderRadius: '8px',
+      border: '2px solid #4f46e5',
+      background: 'white',
+      pointerEvents: 'none',
+      zIndex: '9999',
+      opacity: '0.9',
+      boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+      overflow: 'hidden',
+    });
+    if (item?.image) {
+      const img = document.createElement('img');
+      img.src = item.image;
+      img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+      ghost.appendChild(img);
+    }
+    document.body.appendChild(ghost);
+    return ghost;
+  };
+
+  const handleItemTouchStart = (e, item) => {
+    const touch = e.touches[0];
+    didTouchDragRef.current = false;
+    touchDragStateRef.current = { item, startX: touch.clientX, startY: touch.clientY, ghost: null };
+  };
+
+  const handleItemTouchMove = (e, item) => {
+    if (!touchDragStateRef.current) return;
+    e.stopPropagation();
+    const touch = e.touches[0];
+    const state = touchDragStateRef.current;
+    const dx = touch.clientX - state.startX;
+    const dy = touch.clientY - state.startY;
+    if (!state.ghost && Math.hypot(dx, dy) > 10) {
+      state.ghost = createGhostElement(item, touch.clientX, touch.clientY);
+      didTouchDragRef.current = true;
+    }
+    if (state.ghost) {
+      e.preventDefault(); // stop page scroll while cross-component dragging
+      state.ghost.style.left = `${touch.clientX - 35}px`;
+      state.ghost.style.top = `${touch.clientY - 35}px`;
+    }
+  };
+
+  const handleItemTouchEnd = (e, item) => {
+    const state = touchDragStateRef.current;
+    touchDragStateRef.current = null;
+    if (!state?.ghost) return;
+    document.body.removeChild(state.ghost);
+    const touch = e.changedTouches[0];
+    const imageContainer = document.querySelector('[data-canvas-image-container="true"]');
+    if (imageContainer) {
+      const rect = imageContainer.getBoundingClientRect();
+      if (
+        touch.clientX >= rect.left && touch.clientX <= rect.right &&
+        touch.clientY >= rect.top  && touch.clientY <= rect.bottom
+      ) {
+        const pctX = ((touch.clientX - rect.left) / rect.width) * 100;
+        const pctY = ((touch.clientY - rect.top) / rect.height) * 100;
+        onAddFurniture(item, {
+          x: Math.max(0, Math.min(95, pctX)),
+          y: Math.max(0, Math.min(95, pctY)),
+        });
+        setIsPaletteOpen(false);
+      }
+    }
   };
 
   const handleDragStart = (e, furniture) => {
@@ -46,14 +148,14 @@ export default function FurniturePalette({ furnitureItems, onAddFurniture }) {
     <>
       <button
         onClick={() => setIsPaletteOpen(!isPaletteOpen)}
-        className="lg:hidden fixed bottom-4 right-4 z-overlay p-3 rounded-full bg-primary text-primary-foreground shadow-elevated"
+        className="lg:hidden fixed bottom-20 right-4 z-[170] p-3 rounded-full bg-primary text-primary-foreground shadow-elevated"
         aria-label="Toggle furniture palette"
       >
         <Icon name={isPaletteOpen ? 'XMarkIcon' : 'Squares2X2Icon'} size={24} variant="solid" />
       </button>
       <div
         className={`
-          fixed lg:relative top-0 right-0 h-full w-80 bg-surface border-l border-border z-sidebar
+          fixed lg:relative top-16 right-0 h-[calc(100vh-4rem)] lg:top-auto lg:h-full w-80 bg-surface border-l border-border z-[160] lg:z-auto
           transition-transform duration-300 ease-smooth
           ${isPaletteOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}
         `}
@@ -108,7 +210,7 @@ export default function FurniturePalette({ furnitureItems, onAddFurniture }) {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="flex-1 overflow-y-auto p-4" style={{ overscrollBehavior: 'contain' }}>
             <div className="grid grid-cols-2 gap-3">
               {filteredFurniture?.map((item) => (
                 <div
@@ -117,6 +219,9 @@ export default function FurniturePalette({ furnitureItems, onAddFurniture }) {
                   onDragStart={(e) => handleDragStart(e, item)}
                   className="bg-card rounded-lg border border-border overflow-hidden hover:shadow-card transition-fast cursor-grab active:cursor-grabbing group"
                   onClick={() => handleAddToCanvas(item)}
+                  onTouchStart={(e) => handleItemTouchStart(e, item)}
+                  onTouchMove={(e) => handleItemTouchMove(e, item)}
+                  onTouchEnd={(e) => handleItemTouchEnd(e, item)}
                 >
                   <div className="aspect-square bg-muted relative overflow-hidden">
                     <AppImage
@@ -152,7 +257,7 @@ export default function FurniturePalette({ furnitureItems, onAddFurniture }) {
       </div>
       {isPaletteOpen && (
         <div
-          className="lg:hidden fixed inset-0 bg-foreground/50 z-dropdown"
+          className="lg:hidden fixed inset-0 bg-foreground/50 z-[155]"
           onClick={() => setIsPaletteOpen(false)}
           aria-hidden="true"
         />
@@ -173,5 +278,7 @@ FurniturePalette.propTypes = {
     material: PropTypes.string.isRequired,
     stock: PropTypes.number.isRequired
   })).isRequired,
-  onAddFurniture: PropTypes.func.isRequired
+  onAddFurniture: PropTypes.func.isRequired,
+  isOpen: PropTypes.bool,
+  onToggle: PropTypes.func,
 };

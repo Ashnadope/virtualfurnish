@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect, Fragment } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { orderService } from '@/services/order.service';
 import Icon from '@/components/ui/AppIcon';
-import { useAuth } from '@/contexts/AuthContext';
 
 const statusColors = {
   pending: 'bg-yellow-100 text-yellow-800',
@@ -18,34 +18,44 @@ const paymentStatusColors = {
   pending: 'bg-gray-100 text-gray-800',
   succeeded: 'bg-green-100 text-green-800',
   failed: 'bg-red-100 text-red-800',
-  cancelled: 'bg-red-100 text-red-800'
+  cancelled: 'bg-red-100 text-red-800',
+  refund_pending: 'bg-orange-100 text-orange-800',
+  refunded: 'bg-teal-100 text-teal-800'
 };
 
-export default function AdminOrdersInteractive() {
-  const { user, isHydrated } = useAuth();
-  const [orders, setOrders] = useState([]);
-  const [filteredOrders, setFilteredOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
+const paymentStatusLabel = {
+  pending: 'Pending',
+  succeeded: 'Paid',
+  failed: 'Failed',
+  cancelled: 'Cancelled',
+  refund_pending: 'Refund Pending',
+  refunded: 'Refunded'
+};
+
+export default function AdminOrdersInteractive({ initialOrders = [] }) {
+  const searchParams = useSearchParams();
+  const [orders, setOrders] = useState(initialOrders);
+  const [filteredOrders, setFilteredOrders] = useState(initialOrders);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(() => searchParams?.get('q') || '');
   const [statusFilter, setStatusFilter] = useState('all');
   const [expandedOrderId, setExpandedOrderId] = useState(null);
-
-  useEffect(() => {
-    // Wait until auth is fully resolved
-    if (!isHydrated) return;
-
-    if (user?.id) {
-      fetchAllOrders();
-    } else {
-      // Auth done, no user logged in
-      setLoading(false);
-    }
-  }, [user?.id, isHydrated]);
+  const [updatingOrderId, setUpdatingOrderId] = useState(null);
+  const [statusDraft, setStatusDraft] = useState({});
+  const [markingRefundedId, setMarkingRefundedId] = useState(null);
 
   useEffect(() => {
     applyFilters();
   }, [orders, searchTerm, statusFilter]);
+
+  // Auto-expand when arriving from the dashboard via ?q= and it filters to one order
+  useEffect(() => {
+    if (!searchParams?.get('q') || filteredOrders.length !== 1) return;
+    const order = filteredOrders[0];
+    setExpandedOrderId(order.id);
+    setStatusDraft(prev => ({ ...prev, [order.id]: order.status }));
+  }, [filteredOrders]);
 
   const fetchAllOrders = async () => {
     try {
@@ -84,6 +94,44 @@ export default function AdminOrdersInteractive() {
 
   const toggleOrderExpand = (orderId) => {
     setExpandedOrderId(expandedOrderId === orderId ? null : orderId);
+    // Pre-load the draft status when expanding
+    if (expandedOrderId !== orderId) {
+      const order = orders.find(o => o.id === orderId);
+      if (order) setStatusDraft(prev => ({ ...prev, [orderId]: order.status }));
+    }
+  };
+
+  const handleMarkRefunded = async (orderId) => {
+    setMarkingRefundedId(orderId);
+    try {
+      await orderService.markOrderRefunded(orderId);
+      setOrders(prev => prev.map(o =>
+        o.id === orderId ? { ...o, paymentStatus: 'refunded' } : o
+      ));
+    } catch (err) {
+      console.error('Failed to mark as refunded:', err);
+      alert(err?.message || 'Failed to update. Please try again.');
+    } finally {
+      setMarkingRefundedId(null);
+    }
+  };
+
+  const handleStatusUpdate = async (orderId) => {
+    const newStatus = statusDraft[orderId];
+    const order = orders.find(o => o.id === orderId);
+    if (!newStatus || !order || newStatus === order.status) return;
+
+    setUpdatingOrderId(orderId);
+    try {
+      await orderService.updateOrderStatus(orderId, newStatus);
+      // Optimistically update local state
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+    } catch (err) {
+      console.error('Failed to update order status:', err);
+      alert('Failed to update status. Please try again.');
+    } finally {
+      setUpdatingOrderId(null);
+    }
   };
 
   const formatDate = (dateString) => {
@@ -117,9 +165,19 @@ export default function AdminOrdersInteractive() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-foreground mb-2">All Customer Orders</h1>
-        <p className="text-muted-foreground">Manage and track all orders from customers</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground mb-2">All Customer Orders</h1>
+          <p className="text-muted-foreground">Manage and track all orders from customers</p>
+        </div>
+        <button
+          onClick={fetchAllOrders}
+          disabled={loading}
+          className="flex items-center gap-2 px-4 py-2 bg-surface border border-border rounded-md text-sm text-foreground hover:bg-muted disabled:opacity-50 transition-colors"
+        >
+          <Icon name="ArrowPathIcon" size={16} className={loading ? 'animate-spin' : ''} />
+          Refresh
+        </button>
       </div>
 
       {/* Filters */}
@@ -232,7 +290,7 @@ export default function AdminOrdersInteractive() {
                       </td>
                       <td className="px-6 py-4">
                         <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${paymentStatusColors[order.paymentStatus] || paymentStatusColors.pending}`}>
-                          {order.paymentStatus.charAt(0).toUpperCase() + order.paymentStatus.slice(1)}
+                          {paymentStatusLabel[order.paymentStatus] || order.paymentStatus}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right font-semibold text-foreground">
@@ -260,6 +318,97 @@ export default function AdminOrdersInteractive() {
                       <tr>
                         <td colSpan="7" className="px-6 py-4 bg-muted">
                           <div className="space-y-4">
+                            {/* Refund Action — only when GCash refund is awaiting manual confirmation */}
+                            {order.paymentStatus === 'refund_pending' && (() => {
+                              const gcashTxn = order.transactions?.find(
+                                t => t.gateway === 'gcash' && t.status !== 'refund'
+                              );
+                              const gcashNumber = gcashTxn?.gcashNumber || order.shippingAddress?.phone;
+                              return (
+                                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                                  <div className="flex items-start justify-between gap-4">
+                                    <div>
+                                      <p className="font-semibold text-orange-900 text-sm mb-1">⚠ Refund Pending — Action Required</p>
+                                      <p className="text-orange-700 text-xs">
+                                        This order was cancelled and is awaiting a manual GCash refund.
+                                        Send <span className="font-bold">{formatCurrency(order.totalAmount)}</span> to the customer's GCash number, then click <strong>Mark as Refunded</strong> to confirm.
+                                      </p>
+                                      {gcashNumber && (
+                                        <p className="mt-2 text-orange-800 text-xs">
+                                          {gcashTxn?.gcashNumber
+                                            ? <>GCash number used for payment: <span className="font-bold text-sm">{gcashNumber}</span></>
+                                            : <>Shipping phone (GCash number not recorded): <span className="font-bold">{gcashNumber}</span></>
+                                          }
+                                        </p>
+                                      )}
+                                      {gcashTxn?.gcashReferenceId && (
+                                        <p className="mt-1 text-orange-700 text-xs">Reference ID: <span className="font-mono">{gcashTxn.gcashReferenceId}</span></p>
+                                      )}
+                                    </div>
+                                    <button
+                                      onClick={() => handleMarkRefunded(order.id)}
+                                      disabled={markingRefundedId === order.id}
+                                      className="flex-shrink-0 flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-md text-sm font-medium hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                      {markingRefundedId === order.id ? (
+                                        <>
+                                          <Icon name="ArrowPathIcon" size={14} className="animate-spin" />
+                                          Confirming…
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Icon name="CheckCircleIcon" size={14} />
+                                          Mark as Refunded
+                                        </>
+                                      )}
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })()}
+
+                            {/* Status Update */}
+                            <div className="bg-background rounded-lg border border-border p-4">
+                              <h4 className="font-semibold text-foreground mb-3 text-sm">Update Order Status</h4>
+                              <div className="flex items-center gap-3">
+                                <select
+                                  value={statusDraft[order.id] ?? order.status}
+                                  onChange={(e) => setStatusDraft(prev => ({ ...prev, [order.id]: e.target.value }))}
+                                  className="px-3 py-2 bg-background border border-border rounded-md text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                                >
+                                  <option value="pending">Pending</option>
+                                  <option value="processing">Processing</option>
+                                  <option value="shipped">Shipped</option>
+                                  <option value="delivered">Delivered</option>
+                                  <option value="cancelled">Cancelled</option>
+                                  <option value="disputed">Disputed</option>
+                                </select>
+                                <button
+                                  onClick={() => handleStatusUpdate(order.id)}
+                                  disabled={
+                                    updatingOrderId === order.id ||
+                                    (statusDraft[order.id] ?? order.status) === order.status
+                                  }
+                                  className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                  {updatingOrderId === order.id ? (
+                                    <>
+                                      <Icon name="ArrowPathIcon" size={14} className="animate-spin" />
+                                      Saving...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Icon name="CheckIcon" size={14} />
+                                      Save Status
+                                    </>
+                                  )}
+                                </button>
+                                <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${statusColors[order.status] || statusColors.pending}`}>
+                                  Current: {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                                </span>
+                              </div>
+                            </div>
+
                             {/* Order Items */}
                             <div>
                               <h4 className="font-semibold text-foreground mb-2">Order Items</h4>
@@ -306,12 +455,26 @@ export default function AdminOrdersInteractive() {
                             {order.shippingAddress && (
                               <div className="bg-background p-3 rounded border border-border">
                                 <p className="font-semibold text-foreground text-sm mb-2">Shipping Address</p>
-                                <p className="text-muted-foreground text-xs">
-                                  {order.shippingAddress.firstName} {order.shippingAddress.lastName}<br />
-                                  {order.shippingAddress.addressLine1}<br />
-                                  {order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.postalCode}<br />
-                                  {order.shippingAddress.country}
-                                </p>
+                                <div className="text-muted-foreground text-xs space-y-0.5">
+                                  {(order.shippingAddress.first_name || order.shippingAddress.last_name) && (
+                                    <p>{[order.shippingAddress.first_name, order.shippingAddress.last_name].filter(Boolean).join(' ')}</p>
+                                  )}
+                                  {order.shippingAddress.address_line_1 && (
+                                    <p>{order.shippingAddress.address_line_1}</p>
+                                  )}
+                                  {order.shippingAddress.address_line_2 && (
+                                    <p>{order.shippingAddress.address_line_2}</p>
+                                  )}
+                                  {(order.shippingAddress.city || order.shippingAddress.state || order.shippingAddress.postal_code) && (
+                                    <p>{[order.shippingAddress.city, order.shippingAddress.state, order.shippingAddress.postal_code].filter(Boolean).join(', ')}</p>
+                                  )}
+                                  {order.shippingAddress.country && (
+                                    <p>{order.shippingAddress.country}</p>
+                                  )}
+                                  {order.shippingAddress.phone && (
+                                    <p className="mt-1">{order.shippingAddress.phone}</p>
+                                  )}
+                                </div>
                               </div>
                             )}
                           </div>

@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import Icon from '@/components/ui/AppIcon';
 import AppImage from '@/components/ui/AppImage';
-import { createClient } from '@/lib/supabase/client';
 
 const EMPTY_VARIANT_FORM = {
   color: '',
@@ -49,6 +48,7 @@ export default function ProductFormModal({ isOpen, onClose, onSave, product }) {
         setVariants(
           (product.variants || []).map(v => ({
             id: v.id,
+            sku: v.sku || '',
             color: v.color || '',
             price: v.price ?? '',
             stock_quantity: v.stockQuantity ?? '',
@@ -170,19 +170,31 @@ export default function ProductFormModal({ isOpen, onClose, onSave, product }) {
       if (!validate()) return;
 
       setUploading(true);
-      const supabase = createClient();
       const uploadedVariants = [];
 
       for (const variant of variants) {
         if (variant.selectedFile) {
-          const timestamp = Date.now() + Math.random();
+          // Get a server-issued signed upload URL (avoids browser Supabase client session)
           const ext = variant.selectedFile.name.split('.').pop();
-          const filePath = `products/variant-${timestamp}.${ext}`;
-          const { error: uploadError } = await supabase.storage
-            .from('furniture-images')
-            .upload(filePath, variant.selectedFile, { cacheControl: '3600', upsert: false });
-          if (uploadError) throw new Error(`Image upload failed: ${uploadError.message}`);
-          const { data: { publicUrl } } = supabase.storage.from('furniture-images').getPublicUrl(filePath);
+          const urlRes = await fetch('/api/products/upload-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ext }),
+          });
+          if (!urlRes.ok) {
+            const { error } = await urlRes.json();
+            throw new Error(`Upload URL error: ${error}`);
+          }
+          const { signedUrl, publicUrl } = await urlRes.json();
+
+          // Upload directly to storage via signed URL — no auth header needed
+          const uploadRes = await fetch(signedUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': variant.selectedFile.type || 'application/octet-stream' },
+            body: variant.selectedFile,
+          });
+          if (!uploadRes.ok) throw new Error('Image upload failed');
+
           uploadedVariants.push({ ...variant, image: publicUrl, selectedFile: undefined });
         } else {
           uploadedVariants.push({ ...variant, selectedFile: undefined });
@@ -323,7 +335,7 @@ export default function ProductFormModal({ isOpen, onClose, onSave, product }) {
                           {v.selectedFile && <span className="ml-2 text-xs text-primary font-medium"> New image ready</span>}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          ₱{parseFloat(v.price || 0).toLocaleString()} · {v.stock_quantity} in stock{v.dimensions ? ` · ${v.dimensions}` : ''}
+                          ₱{parseFloat(v.price || 0).toLocaleString()} · {v.stock_quantity} in stock · SKU: {v.sku || '—'}{v.dimensions ? ` · ${v.dimensions}` : ''}
                         </p>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
@@ -341,6 +353,7 @@ export default function ProductFormModal({ isOpen, onClose, onSave, product }) {
                   {editingVariantIndex !== null ? `Editing Variant #${editingVariantIndex + 1}` : 'Add Variant'}
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {/* Row 1: Color + Price + Stock */}
                   <div>
                     <label className="block font-body text-xs font-medium text-foreground mb-1">Color *</label>
                     <input type="text" value={variantForm.color} onChange={(e) => handleVariantChange('color', e.target.value)} className={smallInputCls('variant_color')} placeholder="e.g., Dark Grey" />

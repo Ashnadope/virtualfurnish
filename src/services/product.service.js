@@ -12,7 +12,7 @@ export const productService = {
       const { data, error } = await supabase?.from('products')?.select(`
           *,
           product_variants (*)
-        `)?.order('created_at', { ascending: false });
+        `)?.eq('is_archived', false)?.order('created_at', { ascending: false });
 
       if (error) throw error;
 
@@ -73,7 +73,7 @@ export const productService = {
       const { data, error } = await supabase?.from('products')?.select(`
           *,
           product_variants (*)
-        `)?.eq('category', category)?.order('created_at', { ascending: false });
+        `)?.eq('category', category)?.eq('is_archived', false)?.order('created_at', { ascending: false });
 
       if (error) throw error;
 
@@ -128,7 +128,7 @@ export const productService = {
       const { data, error } = await supabase?.from('products')?.select(`
           *,
           product_variants (*)
-        `)?.eq('is_active', true)?.or(`name.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`)?.order('created_at', { ascending: false });
+        `)?.eq('is_active', true)?.eq('is_archived', false)?.or(`name.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`)?.order('created_at', { ascending: false });
 
       if (error) throw error;
 
@@ -183,7 +183,7 @@ export const productService = {
       const { data, error } = await supabase?.from('products')?.select(`
           *,
           product_variants (*)
-        `)?.eq('id', productId)?.eq('is_active', true)?.single();
+        `)?.eq('id', productId)?.eq('is_active', true)?.eq('is_archived', false)?.single();
 
       if (error) throw error;
 
@@ -233,7 +233,7 @@ export const productService = {
     try {
       const supabase = createClient();
       
-      const { data, error } = await supabase?.from('products')?.select('category')?.not('category', 'is', null);
+      const { data, error } = await supabase?.from('products')?.select('category')?.eq('is_archived', false)?.not('category', 'is', null);
 
       if (error) throw error;
 
@@ -248,11 +248,26 @@ export const productService = {
   },
 
   /**
-   * Create a new product
-   * @param {Object} productData - Product data with name, description, brand, category, basePrice, sku, imageUrl
-   * @returns {Promise<{data: Object, error: any}>}
+   * Create a new product (server-side via API route to avoid browser-client session issues)
    */
   async createProduct(productData) {
+    try {
+      const res = await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(productData),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || 'Failed to create product');
+      return { data: json.data, error: null };
+    } catch (error) {
+      console.error('Error creating product:', error);
+      return { data: null, error: error?.message || String(error) };
+    }
+  },
+
+  // NOTE: legacy body kept below for reference only — replaced by API-route call above
+  async _createProduct_legacy(productData) {
     try {
       const supabase = createClient();
       const variants = productData?.variants || [];
@@ -337,12 +352,25 @@ export const productService = {
   },
 
   /**
-   * Update an existing product
-   * @param {string} productId - Product ID
-   * @param {Object} productData - Updated product data
-   * @returns {Promise<{data: Object, error: any}>}
+   * Update an existing product (server-side via API route)
    */
   async updateProduct(productId, productData) {
+    try {
+      const res = await fetch(`/api/products/${productId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(productData),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || 'Failed to update product');
+      return { data: json.data, error: null };
+    } catch (error) {
+      console.error('Error updating product:', error);
+      return { data: null, error: error?.message || String(error) };
+    }
+  },
+
+  async _updateProduct_legacy(productId, productData) {
     try {
       const supabase = createClient();
       const submittedVariants = productData?.variants || [];
@@ -472,18 +500,9 @@ export const productService = {
    */
   async deleteProduct(productId) {
     try {
-      const supabase = createClient();
-      
-      console.log('Deleting product:', productId);
-      
-      const { error } = await supabase?.from('products')?.delete()?.eq('id', productId);
-
-      if (error) {
-        console.error('Supabase error deleting product:', error);
-        throw error;
-      }
-
-      console.log('Product deleted successfully:', productId);
+      const res = await fetch(`/api/products/${productId}`, { method: 'DELETE' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || 'Failed to delete product');
       return { success: true, error: null };
     } catch (error) {
       console.error('Error deleting product:', error);
@@ -498,18 +517,13 @@ export const productService = {
    */
   async deleteProducts(productIds) {
     try {
-      const supabase = createClient();
-      
-      console.log('Deleting products:', productIds);
-      
-      const { error } = await supabase?.from('products')?.delete()?.in('id', productIds);
-
-      if (error) {
-        console.error('Supabase error deleting products:', error);
-        throw error;
-      }
-
-      console.log('Products deleted successfully:', productIds);
+      const res = await fetch('/api/products', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: productIds }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || 'Failed to delete products');
       return { success: true, error: null };
     } catch (error) {
       console.error('Error deleting products:', error);

@@ -6,27 +6,35 @@ import Icon from '@/components/ui/AppIcon';
 
 export default function ExportButton({ onExport }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const formats = [
-    { id: 'pdf', label: 'Export as PDF', icon: 'DocumentTextIcon' },
-    { id: 'excel', label: 'Export as Excel', icon: 'TableCellsIcon' },
-    { id: 'csv', label: 'Export as CSV', icon: 'DocumentIcon' }
+    { id: 'pdf',   label: 'Export as PDF',   icon: 'DocumentTextIcon' },
+    { id: 'excel', label: 'Export as Excel',  icon: 'TableCellsIcon' },
+    { id: 'csv',   label: 'Export as CSV',    icon: 'DocumentIcon' }
   ];
 
-  const handleExport = (formatId) => {
-    onExport(formatId);
+  const handleExport = async (formatId) => {
     setIsOpen(false);
+    setExporting(true);
+    try {
+      await onExport(formatId);
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
     <div className="relative">
       <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-fast font-body text-sm font-medium shadow-card"
+        onClick={() => !exporting && setIsOpen(!isOpen)}
+        disabled={exporting}
+        className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-fast font-body text-sm font-medium shadow-card disabled:opacity-70 disabled:cursor-not-allowed"
       >
-        <Icon name="ArrowDownTrayIcon" size={20} variant="outline" />
-        <span>Export Data</span>
-        <Icon name="ChevronDownIcon" size={16} variant="outline" />
+        {exporting
+          ? <><Icon name="ArrowPathIcon" size={20} variant="outline" className="animate-spin" /><span>Exporting…</span></>
+          : <><Icon name="ArrowDownTrayIcon" size={20} variant="outline" /><span>Export Data</span><Icon name="ChevronDownIcon" size={16} variant="outline" /></>
+        }
       </button>
       {isOpen && (
         <>

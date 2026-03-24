@@ -1,7 +1,7 @@
 // src/components/AppImage.jsx
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import PropTypes from 'prop-types';
 
@@ -21,9 +21,22 @@ function AppImage({
     fallbackSrc = '/assets/images/no_image.png',
     ...props
 }) {
-    const [imageSrc, setImageSrc] = useState(src);
+    const [imageSrc, setImageSrc] = useState(src || fallbackSrc);
     const [isLoading, setIsLoading] = useState(true);
-    const [hasError, setHasError] = useState(false);
+    const [hasError, setHasError] = useState(!src);
+
+    // Sync when src prop changes (e.g. selecting a different item)
+    useEffect(() => {
+        if (src) {
+            setImageSrc(src);
+            setHasError(false);
+            setIsLoading(true);
+        } else {
+            setImageSrc(fallbackSrc);
+            setHasError(true);
+            setIsLoading(false);
+        }
+    }, [src]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // More reliable external URL detection
     const isExternal = imageSrc?.startsWith('http://') || imageSrc?.startsWith('https://');

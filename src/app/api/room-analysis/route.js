@@ -53,56 +53,150 @@ export async function POST(request) {
       );
     }
 
-    // Create furniture catalog summary for AI context
-    // furnitureData is already expanded per-variant, so each item has its own color/image
-    const furnitureCatalog = furnitureData?.map(item => ({
-      id: item?.id,
-      name: item?.name,          // already includes color, e.g. "Sofa (Dark Grey)"
-      category: item?.category,
-      color: item?.color || null,
-      material: item?.material || null,
-      dimensions: item?.dimensions || null,
-      price: item?.price
-    }));
+    // Build a compact catalog for the AI.
+    // Sort deterministically so the tokenized prefix is byte-for-byte identical on every
+    // request → OpenAI prompt cache hits on the catalog portion (~26k tokens).
+    // Short numeric IDs replace UUIDs (~10 tokens → 1 token each, saves ~8k tokens).
+    // Price omitted — not used for style/color matching (saves another ~3k tokens).
+    // idMap resolves short IDs back to real UUIDs after the AI responds.
+    const sortedItems = [...(furnitureData || [])].sort((a, b) =>
+      String(a?.id).localeCompare(String(b?.id))
+    );
+    const idMap = new Map(); // shortId → real UUID
+    const furnitureCatalog = sortedItems.map((item, index) => {
+      const shortId = index + 1;
+      idMap.set(shortId, item?.id);
+      idMap.set(String(shortId), item?.id); // AI may return id as a string
+      return {
+        id: shortId,
+        name: item?.name,   // already includes color, e.g. "Sofa (Dark Grey)"
+        category: item?.category
+      };
+    });
 
-    // Detect which API is being used and select appropriate model
+    // Detect which API is being used and select model + build prompt accordingly.
+    // OpenAI: json_object mode enforces valid JSON output → shorter, cleaner prompt.
+    // OpenRouter/Nemotron: no JSON mode → needs explicit schema + detailed instructions.
     const isOpenRouter = process.env.OPENAI_API_KEY?.startsWith('sk-or-v1-');
-    const model = isOpenRouter ? 'nvidia/nemotron-nano-12b-v2-vl' : 'gpt-4o';
 
-    // Build request params - JSON mode only supported by OpenAI
-    const requestParams = {
-      model: model,
-      messages: [
-        {
-          role: 'system',
-          content: 'You are an expert interior designer AI for VirtualFurnish. Analyze room images and provide detailed recommendations for furniture placement, color coordination, and style matching. You have access to a furniture catalog and should recommend specific pieces that match the room\'s aesthetic.'
-        },
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: 'Analyze this room image and provide:\n'+ '1. Room type and dimensions estimate\n'+ '2. Dominant colors in the room (walls, flooring, existing furniture) - include hex codes\n'+ '3. Interior design style (modern, traditional, minimalist, etc.)\n'+ '4. Lighting conditions\n'+ '5. Specific furniture recommendations from our catalog that would complement the space\n'+ '6. Color matching suggestions for each recommended piece\n'+ '7. Layout suggestions for furniture placement, including estimated canvas coordinates\n\n'+ 'COORDINATE SYSTEM: The room canvas uses percentage-based coordinates (x: 0=far left, 100=far right; y: 0=top, 100=bottom). IMPORTANT: this is a perspective photo shot from the doorway. The back wall floor line is typically at y=38-48, mid-room floor at y=55-65, and items near the camera at y=75+. Do NOT place furniture above y=35 as that is wall/ceiling space. Estimate realistic floor-level placement for each piece.\n\n'+ 'Available furniture catalog:\n' +
-                JSON.stringify(furnitureCatalog, null, 2) + '\n\n'+ 'Respond ONLY with a single valid JSON object — no markdown, no code fences, no explanation. Use this exact structure:\n'+ '{\n'+ '  "roomAnalysis": {\n'+ '    "roomType": "string",\n'+ '    "estimatedDimensions": "string",\n'+ '    "dominantColors": ["ColorName (#HEXCODE)", "ColorName (#HEXCODE)", "ColorName (#HEXCODE)"],\n'+ '    "style": "string",\n'+ '    "lighting": "string"\n'+ '  },\n'+ '  "furnitureRecommendations": [\n'+ '    {\n'+ '      "furnitureId": "string — use the EXACT id field from the catalog entry",\n'+ '      "furnitureName": "string — use the name field from the catalog entry",\n'+ '      "reason": "string",\n'+ '      "colorMatch": "string",\n'+ '      "placementSuggestion": "string (human-readable placement description)",\n'+ '      "priority": "high or medium or low (all lowercase)",\n'+ '      "suggestedPosition": { "x": number_0_to_100, "y": number_0_to_100 }\n'+ '    }\n'+ '  ],\n'+ '  "layoutSuggestions": [\n'+ '    {\n'+ '      "area": "string",\n'+ '      "suggestion": "string"\n'+ '    }\n'+ '  ],\n'+ '  "colorPaletteSuggestions": {\n'+ '    "primary": "#HEXCODE",\n'+ '    "secondary": "#HEXCODE",\n'+ '    "accent": "#HEXCODE"\n'+ '  }\n'+ '}'
-            },
-            {
-              type: 'image_url',
-              image_url: {
-                url: imageUrl
-              }
-            }
-          ]
-        }
-      ],
-      max_tokens: 2000
-    };
+    const catalogJson = JSON.stringify(furnitureCatalog);
 
-    // Only add JSON format for OpenAI (not supported by Nemotron)
-    if (!isOpenRouter) {
-      requestParams.response_format = { type: 'json_object' };
+    // ── Shared schema string (used by both prompts) ──────────────────────────────
+    const schemaBlock =
+      '{\n' +
+      '  "roomAnalysis": {\n' +
+      '    "roomType": "string",\n' +
+      '    "estimatedDimensions": "string",\n' +
+      '    "dominantColors": ["ColorName (#HEXCODE)"],\n' +
+      '    "style": "string",\n' +
+      '    "lighting": "string"\n' +
+      '  },\n' +
+      '  "furnitureRecommendations": [\n' +
+      '    {\n' +
+      '      "furnitureId": "EXACT id from catalog",\n' +
+      '      "furnitureName": "EXACT name from catalog",\n' +
+      '      "reason": "string",\n' +
+      '      "colorMatch": "string",\n' +
+      '      "placementSuggestion": "string",\n' +
+      '      "priority": "high or medium or low",\n' +
+      '      "suggestedPosition": { "x": number, "y": number }\n' +
+      '    }\n' +
+      '  ],\n' +
+      '  "layoutSuggestions": [\n' +
+      '    { "area": "e.g. Seating zone", "suggestion": "e.g. Place sofa facing the window for natural light" },\n' +
+      '    { "area": "e.g. Sleeping area", "suggestion": "e.g. Center the bed on the main wall for balance" }\n' +
+      '  ],\n' +
+      '  "colorPaletteSuggestions": { "primary": "#HEX", "secondary": "#HEX", "accent": "#HEX" }\n' +
+      '}';
+
+    // ── Coordinate hint (shared) ─────────────────────────────────────────────────
+    const coordHint =
+      'COORDINATE SYSTEM: percentage-based (x: 0=left, 100=right; y: 0=top, 100=bottom). ' +
+      'Do NOT place items above y=35 (wall/ceiling). Back wall ~y=42, mid-room ~y=60, near camera y=75+.';
+
+    let requestParams;
+
+    if (isOpenRouter) {
+      // ── OpenRouter / Nemotron ────────────────────────────────────────────────
+      // No JSON mode available. Use a detailed, explicit prompt so the model
+      // understands it must output only raw JSON with no surrounding text.
+      requestParams = {
+        model: 'nvidia/nemotron-nano-12b-v2-vl',
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You are an expert interior designer AI for VirtualFurnish. ' +
+              'Analyze room images and recommend furniture from a provided catalog. ' +
+              'You MUST respond with a single raw JSON object and absolutely nothing else — ' +
+              'no markdown, no code fences, no explanation, no preamble.'
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text:
+                  'Analyze this room image and recommend furniture from the catalog below.\n\n' +
+                  coordHint + '\n\n' +
+                  'Available furniture catalog:\n' + catalogJson + '\n\n' +
+                  'Respond ONLY with a single valid JSON object — no markdown, no code fences, no explanation. ' +
+                  'Use this exact structure:\n' + schemaBlock
+              },
+              { type: 'image_url', image_url: { url: imageUrl } }
+            ]
+          }
+        ],
+        max_tokens: 2000  // OpenRouter uses max_tokens
+      };
+    } else {
+      // ── OpenAI (gpt-4o-mini) ────────────────────────────────────────────────
+      // Non-reasoning model: responds directly without internal chain-of-thought.
+      // JSON mode guarantees valid JSON. Much cheaper per call than reasoning models
+      // because there are no hidden reasoning tokens billed at output rates.
+      requestParams = {
+        model: 'gpt-4o-mini',
+        response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You are an expert interior designer AI for VirtualFurnish. ' +
+              'Analyze room images and recommend furniture from a provided catalog. ' +
+              'Always respond with a valid JSON object matching the requested schema.'
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text:
+                  'Analyze this room image. ' + coordHint + '\n\n' +
+                  'Furniture catalog:\n' + catalogJson + '\n\n' +
+                  'Return a JSON object with these keys: ' +
+                  'roomAnalysis (roomType, estimatedDimensions, dominantColors as array of "ColorName (#HEXCODE)" strings e.g. ["White (#FFFFFF)","Brown (#8B4513)"], style, lighting), ' +
+                  'furnitureRecommendations (array of: furnitureId, furnitureName, reason, colorMatch, placementSuggestion, priority, suggestedPosition {x,y}), ' +
+                  'layoutSuggestions (array of: area, suggestion), ' +
+                  'colorPaletteSuggestions (primary, secondary, accent hex codes). ' +
+                  'Use EXACT id and name values from the catalog. Priority must be high, medium, or low.'
+              },
+              { type: 'image_url', image_url: { url: imageUrl } }
+            ]
+          }
+        ],
+        max_completion_tokens: 2000  // gpt-4o-mini: no reasoning overhead, 2000 is sufficient for full JSON response
+      };
     }
 
     const response = await openai?.chat?.completions?.create(requestParams);
+    const usage = response?.usage;
+    const cached = usage?.prompt_tokens_details?.cached_tokens ?? 0;
+    console.log(
+      `[room-analysis] model=${requestParams.model}`,
+      `| prompt=${usage?.prompt_tokens} (cached=${cached})`,
+      `| completion=${usage?.completion_tokens}`,
+      `| total=${usage?.total_tokens}`
+    );
 
     // Extract and parse response
     const responseContent = response?.choices?.[0]?.message?.content || '{}';
@@ -141,9 +235,21 @@ export async function POST(request) {
     }
 
     // Normalize analysis fields to ensure consistent casing/types regardless of model output
+    // Normalize roomAnalysis scalar fields — models sometimes return objects
+    if (analysis?.roomAnalysis) {
+      const ed = analysis.roomAnalysis.estimatedDimensions;
+      if (ed && typeof ed === 'object') {
+        // e.g. { width: "10m", length: "12m" } → "10m × 12m"
+        analysis.roomAnalysis.estimatedDimensions =
+          Object.values(ed).filter(Boolean).join(' × ') || 'Unknown';
+      }
+    }
+
     if (analysis?.furnitureRecommendations) {
       analysis.furnitureRecommendations = analysis.furnitureRecommendations.map(rec => ({
         ...rec,
+        // Resolve short numeric catalog ID back to the real UUID
+        furnitureId: idMap.get(Number(rec.furnitureId)) || idMap.get(rec.furnitureId) || rec.furnitureId,
         // Ensure priority is always lowercase
         priority: (rec.priority || 'medium').toLowerCase(),
         // Ensure suggestedPosition values are numbers, not strings

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 
@@ -10,45 +10,37 @@ import CartSummary from './CartSummary';
 import EmptyCart from './EmptyCart';
 import Icon from '@/components/ui/AppIcon';
 
-export default function CartInteractive() {
+export default function CartInteractive({ initialItems = [] }) {
   const router = useRouter();
-  const [cartItems, setCartItems] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [cartItems, setCartItems] = useState(initialItems);
   const [error, setError] = useState(null);
   const [updating, setUpdating] = useState(false);
 
-  useEffect(() => {
-    loadCartItems(true);
-  }, []);
-
-  // initialLoad = true  → show full-page spinner (first mount, no items yet)
-  // updating = true     → keep items visible, block interactions (quantity/remove/clear)
-  const loadCartItems = async (isInitialLoad = false) => {
-    if (isInitialLoad) setLoading(true);
+  // No useEffect initial load — items come from the server via initialItems prop
+  // Called after mutations to refresh the list without a full-page spinner
+  const loadCartItems = async () => {
     setError(null);
-    
+
     const { data, error: fetchError } = await cartService?.getCartItems();
-    
+
     if (fetchError) {
       setError(fetchError);
     } else {
       setCartItems(data || []);
     }
-    
-    setLoading(false);
   };
 
   const handleUpdateQuantity = async (cartItemId, newQuantity) => {
     setUpdating(true);
-    
+
     const { error: updateError } = await cartService?.updateQuantity(cartItemId, newQuantity);
-    
+
     if (updateError) {
       setError(updateError);
     } else {
-      await loadCartItems(false);
+      await loadCartItems();
     }
-    
+
     setUpdating(false);
   };
 
@@ -60,7 +52,7 @@ export default function CartInteractive() {
     if (removeError) {
       setError(removeError);
     } else {
-      await loadCartItems(false);
+      await loadCartItems();
     }
     
     setUpdating(false);
@@ -78,7 +70,7 @@ export default function CartInteractive() {
     if (clearError) {
       setError(clearError);
     } else {
-      await loadCartItems(false);
+      await loadCartItems();
     }
     
     setUpdating(false);
@@ -103,15 +95,7 @@ export default function CartInteractive() {
     router?.push('/checkout');
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
-  if (error) {
+  if (error && cartItems.length === 0) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-6">
         <div className="flex items-center gap-3">
@@ -122,7 +106,7 @@ export default function CartInteractive() {
           </div>
         </div>
         <button
-          onClick={loadCartItems}
+          onClick={() => loadCartItems()}
           className="mt-4 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-fast"
         >
           Retry
@@ -157,6 +141,17 @@ export default function CartInteractive() {
           </button>
         )}
       </div>
+
+      {/* Inline error banner for mutation failures */}
+      {error && cartItems.length > 0 && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          <Icon name="ExclamationTriangleIcon" size={16} variant="solid" className="text-red-500 flex-shrink-0" />
+          {error}
+          <button onClick={() => setError(null)} className="ml-auto text-red-400 hover:text-red-600">
+            <Icon name="XMarkIcon" size={15} />
+          </button>
+        </div>
+      )}
 
       {/* Cart Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

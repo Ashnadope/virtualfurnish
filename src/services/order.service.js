@@ -301,6 +301,51 @@ export const orderService = {
   },
 
   /**
+   * Update order status (admin only)
+   * @param {string} orderId - Order ID
+   * @param {string} newStatus - New status value
+   * @returns {Promise<object>} Updated order
+   */
+  async updateOrderStatus(orderId, newStatus) {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from('orders')
+      .update({ status: newStatus, updated_at: new Date().toISOString() })
+      .eq('id', orderId)
+      .select('id, status, updated_at')
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Cancel an order. Only allowed when status is pending / processing / packing.
+   * Throws if the order is already shipped, delivered, or cancelled.
+   * @param {string} orderId - Order ID
+   */
+  async cancelOrder(orderId) {
+    const res = await fetch(`/api/orders/${orderId}/cancel`, { method: 'POST' });
+    const json = await res.json();
+    if (!res.ok) {
+      throw new Error(json?.error || 'Failed to cancel order.');
+    }
+    // Return both the updated order data and the refund message
+    return { data: json.data, message: json.message, refundStatus: json.refundStatus };
+  },
+
+  /**
+   * Admin: confirm a GCash refund has been sent manually.
+   * Moves payment_status from 'refund_pending' → 'refunded'.
+   * @param {string} orderId - Order ID
+   */
+  async markOrderRefunded(orderId) {
+    const res = await fetch(`/api/orders/${orderId}/mark-refunded`, { method: 'POST' });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json?.error || 'Failed to mark order as refunded.');
+    return json.data;
+  },
+
+  /**
    * Get all orders (admin view) with customer info
    * @param {object} filters - Optional filters (status, dateRange, search, customerId)
    * @returns {Promise<Array>} Array of all orders with customer details
@@ -349,6 +394,8 @@ export const orderService = {
             amount,
             status,
             gateway,
+            gcash_reference_id,
+            metadata,
             created_at
           )
         `)?.order('created_at', { ascending: false });
@@ -422,6 +469,8 @@ export const orderService = {
           amount: parseFloat(txn?.amount || 0),
           status: txn?.status,
           gateway: txn?.gateway,
+          gcashReferenceId: txn?.gcash_reference_id ?? null,
+          gcashNumber: txn?.metadata?.gcash_number ?? null,
           createdAt: txn?.created_at
         })) || []
       })) || [];

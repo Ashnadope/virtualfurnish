@@ -18,17 +18,17 @@ export default function DeleteConfirmModal({ isOpen, onClose, onConfirm, product
               </div>
               <div>
                 <h3 className="font-heading font-semibold text-lg text-foreground">
-                  Delete {productCount === 1 ? 'Product' : 'Products'}
+                  Archive {productCount === 1 ? 'Product' : 'Products'}
                 </h3>
                 <p className="font-body text-sm text-muted-foreground mt-1">
-                  This action cannot be undone
+                  The product will be hidden from the catalog
                 </p>
               </div>
             </div>
 
             <p className="font-body text-sm text-foreground mb-6">
-              Are you sure you want to delete {productCount === 1 ? 'this product' : `these ${productCount} products`}? 
-              All associated data will be permanently removed from the system.
+              Are you sure you want to archive {productCount === 1 ? 'this product' : `these ${productCount} products`}?
+              {' '}It will be removed from the catalog and any active carts, but existing order history will be preserved.
             </p>
 
             <div className="flex items-center justify-end gap-3">
@@ -42,7 +42,7 @@ export default function DeleteConfirmModal({ isOpen, onClose, onConfirm, product
                 onClick={onConfirm}
                 className="px-6 py-2 bg-error text-error-foreground rounded-md font-body text-sm font-medium hover:bg-error/90 transition-fast"
               >
-                Delete {productCount === 1 ? 'Product' : 'Products'}
+                Archive {productCount === 1 ? 'Product' : 'Products'}
               </button>
             </div>
           </div>

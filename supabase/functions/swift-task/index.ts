@@ -134,6 +134,33 @@ serve(async (req) => {
           } catch (err) {
             console.error('Failed updating order (pi):', err);
           }
+
+          // Decrement stock for each item in the order (only on payment_intent.succeeded
+          // to avoid double-decrement — charge.succeeded fires for the same payment too)
+          try {
+            const { data: items } = await supabase
+              .from('order_items')
+              .select('variant_id, product_id, quantity')
+              .eq('order_id', orderId);
+
+            for (const item of (items ?? [])) {
+              if (item.variant_id) {
+                await supabase.rpc('adjust_variant_stock', {
+                  p_variant_id: item.variant_id,
+                  p_delta: -(item.quantity),
+                });
+              } else if (item.product_id) {
+                await supabase.rpc('adjust_product_stock', {
+                  p_product_id: item.product_id,
+                  p_delta: -(item.quantity),
+                });
+              }
+            }
+            console.log('Stock decremented for order', orderId, 'items:', items?.length ?? 0);
+          } catch (err) {
+            // Non-fatal — payment is confirmed, stock update failure should not fail the webhook
+            console.error('Stock decrement error for order', orderId, ':', err);
+          }
         }
         break;
       }

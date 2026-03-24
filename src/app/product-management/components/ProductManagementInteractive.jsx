@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import PropTypes from 'prop-types';
 import Icon from '@/components/ui/AppIcon';
 import { productService } from '@/services/product.service';
@@ -13,9 +14,10 @@ import DeleteConfirmModal from './DeleteConfirmModal';
 import Pagination from './Pagination';
 
 export default function ProductManagementInteractive({ initialProducts }) {
+  const searchParams = useSearchParams();
   const [products, setProducts] = useState(initialProducts);
   const [filters, setFilters] = useState({
-    search: '',
+    search: searchParams?.get('q') ?? '',
     category: 'All Categories',
     status: 'All Status',
     priceRange: 'all'
@@ -59,6 +61,18 @@ export default function ProductManagementInteractive({ initialProducts }) {
   const handleSelectAll = (checked) => {
     setSelectedProducts(checked ? filteredProducts?.map(p => p?.id) : []);
   };
+
+  // Auto-open edit modal when arriving via ?edit={productId} (e.g. from Inventory Alerts)
+  useEffect(() => {
+    const editId = searchParams?.get('edit');
+    if (!editId) return;
+    const target = initialProducts.find(p => String(p.id) === String(editId));
+    if (target) {
+      setEditingProduct(target);
+      setIsFormModalOpen(true);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleAddProduct = () => {
     setEditingProduct(null);

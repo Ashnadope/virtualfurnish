@@ -39,7 +39,7 @@ export default function ActionToolbar({
           className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-muted transition-fast disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Icon name="ArrowPathIcon" size={18} variant="outline" />
-          <span className="font-body text-sm text-foreground">Reset</span>
+          <span className="hidden sm:inline font-body text-sm text-foreground">Reset</span>
         </button>
       </div>
 
@@ -50,14 +50,14 @@ export default function ActionToolbar({
           className="flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-fast disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Icon name="BookmarkIcon" size={18} variant="solid" />
-          <span className="font-body text-sm font-medium">Save Design</span>
+          <span className="hidden sm:inline font-body text-sm font-medium">Save Design</span>
         </button>
         <button
           onClick={onExport}
           className="flex items-center gap-2 px-4 py-2 rounded-md border border-border hover:bg-muted transition-fast"
         >
           <Icon name="ArrowDownTrayIcon" size={18} variant="outline" />
-          <span className="font-body text-sm font-medium text-foreground">Export</span>
+          <span className="hidden sm:inline font-body text-sm font-medium text-foreground">Export</span>
         </button>
       </div>
     </div>

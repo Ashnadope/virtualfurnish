@@ -1,22 +1,39 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import AppImage from '@/components/ui/AppImage';
 import Icon from '@/components/ui/AppIcon';
 import { cartService } from '@/services/cart.service';
 import { wishlistService } from '@/services/wishlist.service';
-import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/hooks/auth.hook';
 
 export default function ProductDetailInteractive({ product }) {
   const router = useRouter();
+  const { user } = useAuth();
   const [selectedVariant, setSelectedVariant] = useState(product?.variants?.[0]);
   const [quantity, setQuantity] = useState(1);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [isAddingToWishlist, setIsAddingToWishlist] = useState(false);
-  const [wishlistDone, setWishlistDone] = useState(false);
+  const [isWishlisted, setIsWishlisted] = useState(false);
+  const [wishlistItemId, setWishlistItemId] = useState(null);
   const [imageError, setImageError] = useState(false);
   const [cartMessage, setCartMessage] = useState(null);
+
+  // Check if this product is already wishlisted on mount (or when user / variant changes)
+  useEffect(() => {
+    if (!user?.id || !product?.id) return;
+    let cancelled = false;
+    wishlistService
+      .getWishlistItemId(user.id, product.id, selectedVariant?.id ?? null)
+      .then(({ inWishlist, itemId }) => {
+        if (cancelled) return;
+        setIsWishlisted(inWishlist);
+        setWishlistItemId(itemId);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [user?.id, product?.id, selectedVariant?.id]);
 
   const maxQty = selectedVariant?.stockQuantity ?? 99;
 
@@ -76,19 +93,23 @@ export default function ProductDetailInteractive({ product }) {
   };
 
   const handleAddToWishlist = async () => {
+    if (!user) {
+      router.push('/login');
+      return;
+    }
     setIsAddingToWishlist(true);
     try {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.push('/login');
-        return;
+      if (isWishlisted && wishlistItemId) {
+        await wishlistService.removeFromWishlist(wishlistItemId, user.id);
+        setIsWishlisted(false);
+        setWishlistItemId(null);
+      } else {
+        const result = await wishlistService.addToWishlist(user.id, product?.id, selectedVariant?.id ?? null);
+        setIsWishlisted(true);
+        setWishlistItemId(result?.id ?? null);
       }
-      await wishlistService.addToWishlist(user.id, product?.id, selectedVariant?.id ?? null);
-      setWishlistDone(true);
-      setTimeout(() => setWishlistDone(false), 3000);
     } catch (err) {
-      console.error('Error adding to wishlist:', err);
+      console.error('Error toggling wishlist:', err);
     } finally {
       setIsAddingToWishlist(false);
     }
@@ -233,7 +254,11 @@ export default function ProductDetailInteractive({ product }) {
                   {selectedVariant?.dimensions && (
                     <div>
                       <p className="text-xs text-muted-foreground">Dimensions</p>
-                      <p className="text-sm font-medium text-foreground">{selectedVariant.dimensions}</p>
+                      <p className="text-sm font-medium text-foreground">
+                        {typeof selectedVariant.dimensions === 'object' && selectedVariant.dimensions !== null
+                          ? `${selectedVariant.dimensions.width ?? '?'}W × ${selectedVariant.dimensions.length ?? '?'}L × ${selectedVariant.dimensions.height ?? '?'}H cm`
+                          : selectedVariant.dimensions}
+                      </p>
                     </div>
                   )}
                   {selectedVariant?.material && (
@@ -337,20 +362,20 @@ export default function ProductDetailInteractive({ product }) {
               <button
                 onClick={handleAddToWishlist}
                 disabled={isAddingToWishlist}
-                title={wishlistDone ? 'Added to wishlist!' : 'Add to wishlist'}
+                title={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
                 className={`px-4 py-3 rounded-lg border-2 transition-all flex items-center justify-center gap-2 font-semibold text-sm disabled:opacity-50 ${
-                  wishlistDone
+                  isWishlisted
                     ? 'border-primary bg-primary/10 text-primary'
                     : 'border-border text-foreground hover:border-primary hover:text-primary'
                 }`}
               >
                 <Icon
-                  name={wishlistDone ? 'HeartIcon' : 'HeartIcon'}
+                  name={isWishlisted ? 'HeartIcon' : 'HeartIcon'}
                   size={20}
-                  variant={wishlistDone ? 'solid' : 'outline'}
-                  className={wishlistDone ? 'text-primary' : ''}
+                  variant={isWishlisted ? 'solid' : 'outline'}
+                  className={isWishlisted ? 'text-primary' : ''}
                 />
-                {wishlistDone ? 'Wishlisted' : 'Wishlist'}
+                {isWishlisted ? 'Wishlisted' : 'Wishlist'}
               </button>
               {cartMessage?.type === 'success' && (
                 <button
