@@ -5,7 +5,7 @@ import PropTypes from 'prop-types';
 import Icon from '@/components/ui/AppIcon';
 import AppImage from '@/components/ui/AppImage';
 
-export default function FurniturePalette({ furnitureItems, onAddFurniture, isOpen: externalIsOpen, onToggle }) {
+export default function FurniturePalette({ furnitureItems, onAddFurniture, isOpen: externalIsOpen, onToggle, aiRecs = [] }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [internalOpen, setInternalOpen] = useState(false);
@@ -31,6 +31,17 @@ export default function FurniturePalette({ furnitureItems, onAddFurniture, isOpe
     return () => { document.body.style.overflow = ''; };
   }, [isPaletteOpen]);
 
+  // Build a map from furniture/product ID → { priority weight, reason } for AI-recommended items
+  const aiRecMap = useMemo(() => {
+    const PRIORITY = { high: 3, medium: 2, low: 1 };
+    const map = new Map();
+    aiRecs.forEach(rec => {
+      const weight = PRIORITY[rec?.priority] ?? 0;
+      if (rec?.furnitureId) map.set(rec.furnitureId, { weight, reason: rec?.reason });
+    });
+    return map;
+  }, [aiRecs]);
+
   // Dynamically extract unique categories from furniture items
   const categories = useMemo(() => {
     if (!furnitureItems || furnitureItems.length === 0) {
@@ -41,11 +52,21 @@ export default function FurniturePalette({ furnitureItems, onAddFurniture, isOpe
     return ['All', ...uniqueCategories.sort()];
   }, [furnitureItems]);
 
-  const filteredFurniture = furnitureItems?.filter(item => {
-    const matchesSearch = item?.name?.toLowerCase()?.includes(searchQuery?.toLowerCase());
-    const matchesCategory = selectedCategory === 'All' || item?.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
+  const filteredFurniture = useMemo(() => {
+    const filtered = furnitureItems?.filter(item => {
+      const matchesSearch = item?.name?.toLowerCase()?.includes(searchQuery?.toLowerCase());
+      const matchesCategory = selectedCategory === 'All' || item?.category === selectedCategory;
+      return matchesSearch && matchesCategory;
+    }) ?? [];
+
+    // Sort: AI-recommended items first (high → medium → low), then alphabetical
+    return [...filtered].sort((a, b) => {
+      const wa = aiRecMap.get(a?.id)?.weight ?? aiRecMap.get(a?.productId)?.weight ?? 0;
+      const wb = aiRecMap.get(b?.id)?.weight ?? aiRecMap.get(b?.productId)?.weight ?? 0;
+      if (wb !== wa) return wb - wa;
+      return (a?.name ?? '').localeCompare(b?.name ?? '');
+    });
+  }, [furnitureItems, searchQuery, selectedCategory, aiRecMap]);
 
   const handleAddToCanvas = (furniture) => {
     if (didTouchDragRef.current) {
@@ -212,7 +233,9 @@ export default function FurniturePalette({ furnitureItems, onAddFurniture, isOpe
 
           <div className="flex-1 overflow-y-auto p-4" style={{ overscrollBehavior: 'contain' }}>
             <div className="grid grid-cols-2 gap-3">
-              {filteredFurniture?.map((item) => (
+              {filteredFurniture?.map((item) => {
+                const aiRec = aiRecMap.get(item?.id) ?? aiRecMap.get(item?.productId);
+                return (
                 <div
                   key={item?.id}
                   draggable="true"
@@ -234,6 +257,15 @@ export default function FurniturePalette({ furnitureItems, onAddFurniture, isOpe
                         <Icon name="PlusIcon" size={20} variant="solid" />
                       </div>
                     </div>
+                    {aiRec && (
+                      <div className={`absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded text-[10px] font-body font-semibold leading-tight ${
+                        aiRec.weight === 3 ? 'bg-primary text-primary-foreground' :
+                        aiRec.weight === 2 ? 'bg-amber-500 text-white' :
+                        'bg-muted text-muted-foreground'
+                      }`}>
+                        {aiRec.weight === 3 ? '★ AI Pick' : aiRec.weight === 2 ? '✦ Suggested' : '· Consider'}
+                      </div>
+                    )}
                   </div>
                   <div className="p-2">
                     <p className="font-body font-medium text-xs text-foreground truncate">{item?.name}</p>
@@ -241,7 +273,8 @@ export default function FurniturePalette({ furnitureItems, onAddFurniture, isOpe
                     <p className="font-heading font-semibold text-sm text-primary mt-1">₱{item?.price?.toLocaleString()}</p>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             {filteredFurniture?.length === 0 && (
@@ -281,4 +314,9 @@ FurniturePalette.propTypes = {
   onAddFurniture: PropTypes.func.isRequired,
   isOpen: PropTypes.bool,
   onToggle: PropTypes.func,
+  aiRecs: PropTypes.arrayOf(PropTypes.shape({
+    furnitureId: PropTypes.string,
+    priority: PropTypes.string,
+    reason: PropTypes.string,
+  })),
 };

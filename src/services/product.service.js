@@ -529,5 +529,27 @@ export const productService = {
       console.error('Error deleting products:', error);
       return { success: false, error: error?.message };
     }
+  },
+
+  /**
+   * Fetch ML-computed recommendation scores for a user.
+   * Returns a plain object { product_id: score } for O(1) catalog sorting.
+   */
+  async getRecommendations(userId) {
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('product_recommendations')
+        .select('product_id, score')
+        .eq('user_id', userId)
+        .order('score', { ascending: false });
+      if (error) throw error;
+      const scoreMap = {};
+      (data || []).forEach(row => { scoreMap[row.product_id] = row.score; });
+      return { data: scoreMap, error: null };
+    } catch (error) {
+      console.error('Error fetching recommendations:', error);
+      return { data: {}, error: error?.message };
+    }
   }
 };

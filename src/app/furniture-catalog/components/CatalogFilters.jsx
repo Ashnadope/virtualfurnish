@@ -15,6 +15,7 @@ export default function CatalogFilters({
   const [localPriceRange, setLocalPriceRange] = useState(priceRange);
 
   const sortOptions = [
+    { value: 'recommended', label: '✨ Recommended for You' },
     { value: 'newest', label: 'Newest First' },
     { value: 'price-low', label: 'Price: Low to High' },
     { value: 'price-high', label: 'Price: High to Low' },
@@ -125,7 +126,7 @@ export default function CatalogFilters({
       <button
         onClick={() => {
           onCategoryChange?.('all');
-          onSortChange?.('newest');
+          onSortChange?.('recommended');
           setLocalPriceRange({ min: 0, max: 100000 });
           onPriceRangeChange?.({ min: 0, max: 100000 });
         }}

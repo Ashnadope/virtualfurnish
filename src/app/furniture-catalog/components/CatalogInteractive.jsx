@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { productService } from '../../../services/product.service';
+import { useAuth } from '../../../contexts/AuthContext';
 import Header from '../../../components/common/Header';
 import Breadcrumb from '../../../components/common/Breadcrumb';
 import ProductCard from './ProductCard';
@@ -21,8 +22,12 @@ export default function CatalogInteractive({ initialProducts = [] }) {
   // Filter states
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState('newest');
+  const [sortBy, setSortBy] = useState('recommended');
   const [priceRange, setPriceRange] = useState({ min: 0, max: 100000 });
+
+  // ML recommendations (product_id → score map)
+  const { user } = useAuth();
+  const [recScores, setRecScores] = useState({});
 
   useEffect(() => {
     // If initialProducts provided, use them directly
@@ -38,9 +43,17 @@ export default function CatalogInteractive({ initialProducts = [] }) {
     }
   }, [initialProducts]);
 
+  // Fetch ML recommendations whenever the user changes
+  useEffect(() => {
+    if (!user?.id) return;
+    productService.getRecommendations(user.id).then(({ data }) => {
+      setRecScores(data || {});
+    });
+  }, [user?.id]);
+
   useEffect(() => {
     applyFilters();
-  }, [products, selectedCategory, searchTerm, sortBy, priceRange]);
+  }, [products, selectedCategory, searchTerm, sortBy, priceRange, recScores]);
 
   const loadInitialData = async () => {
     try {
@@ -120,6 +133,14 @@ export default function CatalogInteractive({ initialProducts = [] }) {
       filtered = filtered?.sort((a, b) => 
         new Date(b?.createdAt || 0) - new Date(a?.createdAt || 0)
       ) || [];
+    } else if (sortBy === 'recommended') {
+      // Scored products first (desc); unscored items sorted newest-first as fallback
+      filtered = filtered?.sort((a, b) => {
+        const sa = recScores[a?.id] ?? -1;
+        const sb = recScores[b?.id] ?? -1;
+        if (sa !== sb) return sb - sa;
+        return new Date(b?.createdAt || 0) - new Date(a?.createdAt || 0);
+      }) || [];
     }
 
     setFilteredProducts(filtered || []);

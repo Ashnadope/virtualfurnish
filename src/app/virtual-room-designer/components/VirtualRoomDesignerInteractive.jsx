@@ -1029,6 +1029,7 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
                 <FurniturePalette
                   furnitureItems={initialFurnitureData}
                   onAddFurniture={handleAddFurniture}
+                  aiRecs={aiAnalysis?.furnitureRecommendations || []}
                   isOpen={furnitureCatalogOpen}
                   onToggle={(open) => {
                     setFurnitureCatalogOpen(open);
