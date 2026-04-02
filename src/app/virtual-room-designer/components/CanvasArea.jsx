@@ -366,6 +366,25 @@ const CanvasArea = forwardRef(function CanvasArea({
 
   const selectedFurniture = placedFurniture?.find(f => f?.id === selectedFurnitureId);
 
+  const getPaletteCardBackground = () => {
+    const hexValues = Object.values(colorPalette || {}).filter(
+      (value) => typeof value === 'string' && /^#[0-9A-Fa-f]{6}$/.test(value)
+    );
+
+    if (!hexValues.length) {
+      return 'rgba(255, 255, 255, 0.96)';
+    }
+
+    const hex = hexValues[0].replace('#', '');
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+
+    // Blend toward white so text remains readable regardless of source color.
+    const blend = (channel) => Math.round(channel * 0.18 + 255 * 0.82);
+    return `rgba(${blend(r)}, ${blend(g)}, ${blend(b)}, 0.98)`;
+  };
+
   return (
     <div className="flex-1 flex flex-col bg-muted rounded-lg overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 bg-surface border-b border-border">
@@ -444,8 +463,11 @@ const CanvasArea = forwardRef(function CanvasArea({
                 </div>
               )}
               
-              {showAISuggestions && aiSuggestionType === 'color' && !colorPaletteDismissed && colorPalette && (
-                    <div className="absolute top-4 right-4 bg-surface/95 border border-border rounded-lg shadow-elevated pointer-events-auto" style={{ minWidth: '180px' }}>
+                {showAISuggestions && aiSuggestionType === 'color' && !colorPaletteDismissed && colorPalette && (
+                  <div
+                    className="absolute top-4 right-4 z-50 border border-border rounded-lg shadow-elevated pointer-events-auto backdrop-blur-sm"
+                    style={{ minWidth: '180px', backgroundColor: getPaletteCardBackground() }}
+                  >
                       <div className="flex items-center justify-between px-3 pt-3 pb-2">
                         <p className="font-heading font-semibold text-sm text-foreground">Recommended Palette</p>
                         <button
@@ -553,60 +575,56 @@ const CanvasArea = forwardRef(function CanvasArea({
         )}
       </div>
       {selectedFurniture && (
-        <div className="px-4 py-3 bg-surface border-t border-border">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-md overflow-hidden bg-muted">
-                <AppImage
-                  key={selectedFurniture?.id ?? selectedFurniture?.image}
-                  src={selectedFurniture?.image}
-                  alt={selectedFurniture?.alt}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <div>
-                <p className="font-heading font-semibold text-sm text-foreground">{selectedFurniture?.name}</p>
-                <p className="font-body text-xs text-muted-foreground">
-                  {selectedFurniture?.category} • Scale: {(selectedFurniture?.scale * 100)?.toFixed(0)}% • Rotation: {selectedFurniture?.rotation}°
-                </p>
-              </div>
+        <div className="px-4 py-2.5 bg-surface border-t border-border">
+          <div className="grid grid-cols-[3.5rem,1fr] grid-rows-2 gap-x-3 gap-y-0.5 sm:grid-cols-[3rem,minmax(0,1fr),auto] sm:grid-rows-1 sm:items-center sm:gap-y-0">
+            <div className="row-span-2 self-stretch w-14 rounded-md overflow-hidden bg-muted sm:row-span-1 sm:self-center sm:w-11 sm:h-11">
+              <AppImage
+                key={selectedFurniture?.id ?? selectedFurniture?.image}
+                src={selectedFurniture?.image}
+                alt={selectedFurniture?.alt}
+                className="w-full h-full object-cover"
+              />
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="min-w-0 col-start-2 row-start-1 text-left sm:col-start-2 sm:row-start-1 sm:pr-3">
+              <p className="font-heading font-semibold text-sm text-foreground truncate">{selectedFurniture?.name}</p>
+            </div>
+
+            <div className="col-start-2 row-start-2 grid grid-cols-5 gap-2 justify-items-start sm:col-start-3 sm:row-start-1 sm:flex sm:items-center sm:justify-start sm:gap-2">
               <button
                 onClick={() => onFurnitureRotate(selectedFurnitureId, -15)}
-                className="p-2 rounded-md hover:bg-muted transition-fast"
+                className="h-8 w-full flex items-center justify-center rounded-md hover:bg-muted transition-fast sm:h-auto sm:w-auto sm:p-2"
                 aria-label="Rotate left"
               >
-                <Icon name="ArrowUturnLeftIcon" size={18} variant="outline" />
+                <Icon name="ArrowUturnLeftIcon" size={16} variant="outline" />
               </button>
               <button
                 onClick={() => onFurnitureRotate(selectedFurnitureId, 15)}
-                className="p-2 rounded-md hover:bg-muted transition-fast"
+                className="h-8 w-full flex items-center justify-center rounded-md hover:bg-muted transition-fast sm:h-auto sm:w-auto sm:p-2"
                 aria-label="Rotate right"
               >
-                <Icon name="ArrowUturnRightIcon" size={18} variant="outline" />
+                <Icon name="ArrowUturnRightIcon" size={16} variant="outline" />
               </button>
               <button
                 onClick={() => onFurnitureScale(selectedFurnitureId, 0.1)}
-                className="p-2 rounded-md hover:bg-muted transition-fast"
+                className="h-8 w-full flex items-center justify-center rounded-md hover:bg-muted transition-fast sm:h-auto sm:w-auto sm:p-2"
                 aria-label="Scale up"
               >
-                <Icon name="PlusCircleIcon" size={18} variant="outline" />
+                <Icon name="PlusCircleIcon" size={16} variant="outline" />
               </button>
               <button
                 onClick={() => onFurnitureScale(selectedFurnitureId, -0.1)}
-                className="p-2 rounded-md hover:bg-muted transition-fast"
+                className="h-8 w-full flex items-center justify-center rounded-md hover:bg-muted transition-fast sm:h-auto sm:w-auto sm:p-2"
                 aria-label="Scale down"
               >
-                <Icon name="MinusCircleIcon" size={18} variant="outline" />
+                <Icon name="MinusCircleIcon" size={16} variant="outline" />
               </button>
               <button
                 onClick={() => onFurnitureDelete(selectedFurnitureId)}
-                className="p-2 rounded-md hover:bg-error/10 text-error transition-fast"
+                className="h-8 w-full flex items-center justify-center rounded-md hover:bg-error/10 text-error transition-fast sm:h-auto sm:w-auto sm:p-2"
                 aria-label="Delete furniture"
               >
-                <Icon name="TrashIcon" size={18} variant="outline" />
+                <Icon name="TrashIcon" size={16} variant="outline" />
               </button>
             </div>
           </div>

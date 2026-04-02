@@ -2,7 +2,6 @@ import { productService } from '@/services/product.service';
 import { notFound } from 'next/navigation';
 import Sidebar from '@/components/common/Sidebar';
 import Header from '@/components/common/Header';
-import Breadcrumb from '@/components/common/Breadcrumb';
 import ProductDetailInteractive from '../components/ProductDetailInteractive';
 
 export const dynamic = 'force-dynamic';
@@ -48,10 +47,6 @@ export default async function ProductDetailPage({ params }) {
         <Header userRole="customer" />
         <main className="pt-16">
           <div className="p-6 max-w-7xl mx-auto">
-            <div className="mb-6">
-              <Breadcrumb />
-            </div>
-            
             <ProductDetailInteractive product={product} />
           </div>
         </main>

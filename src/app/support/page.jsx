@@ -20,7 +20,7 @@ export default async function SupportPage({ searchParams }) {
   // Fetch messages server-side so SupportChat never needs to do an initial client fetch
   const { data: messages } = await supabase
     .from('support_messages')
-    .select('id, user_id, sender_id, sender_role, message, order_number, is_read_by_customer, is_read_by_admin, created_at')
+    .select('id, user_id, sender_id, sender_role, message, order_id, order_number, is_read_by_customer, is_read_by_admin, created_at')
     .eq('user_id', user.id)
     .order('created_at', { ascending: true });
 

@@ -23,19 +23,19 @@ export default function ContinueDesignModal({ isOpen, onContinue, onStartNew, de
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
-      <div className="bg-surface rounded-lg shadow-xl max-w-2xl w-full mx-4 overflow-hidden">
+    <div className="fixed inset-0 z-overlay flex items-start sm:items-center justify-center p-3 sm:p-4 pt-20 sm:pt-4 bg-black bg-opacity-50 backdrop-blur-sm">
+      <div className="bg-surface rounded-lg shadow-xl max-w-2xl w-full overflow-y-auto max-h-[calc(100vh-5rem)] sm:max-h-[90vh]">
         {/* Header */}
-        <div className="p-6 border-b border-border">
-          <div className="flex items-start gap-3">
-            <div className="flex-shrink-0 w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-              <Icon name="PencilSquareIcon" size={24} className="text-primary" />
+        <div className="p-4 sm:p-6 border-b border-border">
+          <div className="flex items-start gap-2.5 sm:gap-3">
+            <div className="flex-shrink-0 w-9 h-9 sm:w-10 sm:h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+              <Icon name="PencilSquareIcon" size={20} className="text-primary" />
             </div>
             <div className="flex-1">
-              <h3 className="font-heading font-semibold text-xl text-foreground">
+              <h3 className="font-heading font-semibold text-lg sm:text-xl text-foreground">
                 Continue Previous Design?
               </h3>
-              <p className="font-body text-sm text-muted mt-1">
+              <p className="font-body text-xs sm:text-sm text-muted mt-1">
                 You have an unfinished room design. Would you like to continue or start fresh?
               </p>
             </div>
@@ -43,7 +43,7 @@ export default function ContinueDesignModal({ isOpen, onContinue, onStartNew, de
         </div>
 
         {/* Body - Design Preview */}
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           <div className="bg-background rounded-lg border border-border overflow-hidden">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Preview Image */}
@@ -68,21 +68,21 @@ export default function ContinueDesignModal({ isOpen, onContinue, onStartNew, de
               </div>
 
               {/* Design Info */}
-              <div className="p-4 flex flex-col justify-between">
+              <div className="p-3 sm:p-4 flex flex-col justify-between">
                 <div>
-                  <h4 className="font-heading font-semibold text-lg text-foreground mb-2">
+                  <h4 className="font-heading font-semibold text-base sm:text-lg text-foreground mb-2">
                     {design.name}
                   </h4>
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-sm">
                       <Icon name="ClockIcon" size={16} className="text-muted" />
-                      <span className="font-body text-muted">
+                      <span className="font-body text-foreground">
                         Last edited {formatDate(design.updated_at)}
                       </span>
                     </div>
                     <div className="flex items-center gap-2 text-sm">
                       <Icon name="CubeIcon" size={16} className="text-muted" />
-                      <span className="font-body text-muted">
+                      <span className="font-body text-foreground">
                         {design.furnitureCount} {design.furnitureCount === 1 ? 'item' : 'items'} placed
                       </span>
                     </div>
@@ -103,17 +103,17 @@ export default function ContinueDesignModal({ isOpen, onContinue, onStartNew, de
         </div>
 
         {/* Footer - Action Buttons */}
-        <div className="flex flex-col-reverse sm:flex-row gap-3 p-6 border-t border-border bg-background/50">
+        <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 p-4 sm:p-6 border-t border-border bg-background/50">
           <button
             onClick={onStartNew}
-            className="flex-1 px-6 py-3 border-2 border-border text-foreground rounded-lg font-body font-medium hover:bg-surface transition-colors flex items-center justify-center gap-2"
+            className="flex-1 px-4 sm:px-6 py-2.5 sm:py-3 border-2 border-border text-foreground rounded-lg font-body text-sm sm:text-base font-medium hover:bg-surface transition-colors flex items-center justify-center gap-2"
           >
             <Icon name="PlusCircleIcon" size={20} />
             Start New Design
           </button>
           <button
             onClick={onContinue}
-            className="flex-1 px-6 py-3 bg-primary text-white rounded-lg font-body font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
+            className="flex-1 px-4 sm:px-6 py-2.5 sm:py-3 bg-primary text-white rounded-lg font-body text-sm sm:text-base font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
           >
             <Icon name="ArrowRightCircleIcon" size={20} />
             Continue Design

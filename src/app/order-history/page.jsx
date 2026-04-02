@@ -12,7 +12,7 @@ export const metadata = {
   description: 'View and manage your furniture orders.'
 };
 
-export default async function OrderHistoryPage() {
+export default async function OrderHistoryPage({ searchParams }) {
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -90,6 +90,10 @@ export default async function OrderHistoryPage() {
       total: parseFloat(item.total ?? 0),
       imageUrl: item.product_variants?.image_url ?? item.products?.image_url ?? null
     })),
+    totalItems: (order.order_items ?? []).reduce(
+      (sum, item) => sum + (parseInt(item?.quantity ?? 0, 10) || 0),
+      0
+    ),
     transactions: (order.payment_transactions ?? []).map(txn => ({
       id: txn.id,
       amount: parseFloat(txn.amount ?? 0),
@@ -112,7 +116,11 @@ export default async function OrderHistoryPage() {
             <h1 className="text-3xl font-bold text-foreground mb-2">Order History</h1>
             <p className="text-muted-foreground">View and manage your furniture orders</p>
           </div>
-          <OrderHistoryInteractive initialOrders={initialOrders} />
+          <OrderHistoryInteractive
+            initialOrders={initialOrders}
+            initialSearch={searchParams?.order || ''}
+            initialFocusedOrderId={searchParams?.orderId || ''}
+          />
         </div>
       </main>
     </div>

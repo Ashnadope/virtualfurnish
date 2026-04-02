@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import AppImage from '@/components/ui/AppImage';
 import Icon from '@/components/ui/AppIcon';
 import { cartService } from '@/services/cart.service';
@@ -65,13 +66,20 @@ export default function ProductDetailInteractive({ product }) {
     }
 
     setIsAddingToCart(true);
+    let timeoutId;
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error('Request timed out. Please try again.')), 20000);
+    });
     try {
-      const { data, error } = await cartService.addToCart({
-        productId: product?.id,
-        variantId: selectedVariant?.id,
-        quantity: parseInt(quantity),
-        price: parseFloat(selectedVariant?.price || product?.basePrice)
-      });
+      const { data, error } = await Promise.race([
+        cartService.addToCart({
+          productId: product?.id,
+          variantId: selectedVariant?.id,
+          quantity: parseInt(quantity),
+          price: parseFloat(selectedVariant?.price || product?.basePrice)
+        }),
+        timeoutPromise,
+      ]);
 
       if (!error && data) {
         setCartMessage({ type: 'success', text: 'Added to cart successfully!' });
@@ -82,8 +90,9 @@ export default function ProductDetailInteractive({ product }) {
       }
     } catch (err) {
       console.error('Error adding to cart:', err);
-      setCartMessage({ type: 'error', text: 'An error occurred. Please try again.' });
+      setCartMessage({ type: 'error', text: err?.message || 'An error occurred. Please try again.' });
     } finally {
+      clearTimeout(timeoutId);
       setIsAddingToCart(false);
     }
   };
@@ -121,12 +130,16 @@ export default function ProductDetailInteractive({ product }) {
   return (
     <div className="space-y-8">
       {/* Breadcrumb Navigation */}
-      <nav className="text-sm text-muted-foreground">
-        <a href="/furniture-catalog" className="hover:text-foreground transition-colors">
+      <nav className="flex items-start gap-2 text-sm text-muted-foreground">
+        <Link href="/customer-dashboard" className="hover:text-foreground transition-colors">
+          Dashboard
+        </Link>
+        <Icon name="ChevronRightIcon" size={14} variant="outline" className="text-muted-foreground" />
+        <Link href="/furniture-catalog" className="hover:text-foreground transition-colors">
           Furniture Catalog
-        </a>
-        <span className="mx-2">/</span>
-        <span className="text-foreground">{product?.name}</span>
+        </Link>
+        <Icon name="ChevronRightIcon" size={14} variant="outline" className="text-muted-foreground" />
+        <span className="text-foreground leading-snug line-clamp-2">{product?.name}</span>
       </nav>
 
       {/* Product Content */}

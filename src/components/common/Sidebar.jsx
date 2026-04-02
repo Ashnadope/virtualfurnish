@@ -68,7 +68,7 @@ export default function Sidebar({ userRole = 'customer', isCollapsed = false }) 
     <>
       <aside
         className={`
-          fixed top-0 left-0 h-full bg-surface border-r border-border z-sidebar
+          fixed top-0 left-0 h-full bg-surface border-r border-border z-overlay
           transition-all duration-300 ease-smooth
           ${isCollapsed ? 'w-16' : 'w-sidebar'}
           ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}

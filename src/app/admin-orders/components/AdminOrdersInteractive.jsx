@@ -59,13 +59,16 @@ export default function AdminOrdersInteractive({ initialOrders = [] }) {
 
   const fetchAllOrders = async () => {
     try {
-      setLoading(true);
-      const data = await orderService.getAllOrders();
-      setOrders(data);
       setError(null);
+      setLoading(true);
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Refresh timed out. Please try again.')), 15000);
+      });
+      const data = await Promise.race([orderService.getAllOrders(), timeoutPromise]);
+      setOrders(data);
     } catch (err) {
       console.error('Error fetching orders:', err);
-      setError('Failed to load orders. Please try again.');
+      setError(err?.message || 'Failed to load orders. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -83,9 +86,9 @@ export default function AdminOrdersInteractive({ initialOrders = [] }) {
     if (searchTerm) {
       const search = searchTerm.toLowerCase();
       filtered = filtered.filter(order =>
-        order.orderNumber.toLowerCase().includes(search) ||
-        order.customer.fullName.toLowerCase().includes(search) ||
-        order.customer.email.toLowerCase().includes(search)
+        (order?.orderNumber || '').toLowerCase().includes(search) ||
+        (order?.customer?.fullName || '').toLowerCase().includes(search) ||
+        (order?.customer?.email || '').toLowerCase().includes(search)
       );
     }
 
@@ -148,19 +151,6 @@ export default function AdminOrdersInteractive({ initialOrders = [] }) {
       currency: 'PHP'
     }).format(amount);
   };
-
-  if (loading) {
-    return (
-      <div className="space-y-4 animate-pulse">
-        <div className="h-8 w-64 bg-muted rounded" />
-        <div className="h-4 w-48 bg-muted rounded" />
-        <div className="bg-surface rounded-lg border border-border p-4 h-20" />
-        {[...Array(5)].map((_, i) => (
-          <div key={i} className="bg-surface rounded-lg border border-border p-4 h-16" />
-        ))}
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">

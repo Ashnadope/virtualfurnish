@@ -28,7 +28,7 @@ export async function GET(request) {
 
   const { data, error } = await supabase
     .from('support_messages')
-    .select('id, user_id, sender_id, sender_role, message, order_number, is_read_by_customer, is_read_by_admin, created_at')
+    .select('id, user_id, sender_id, sender_role, message, order_id, order_number, is_read_by_customer, is_read_by_admin, created_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: true });
 
@@ -63,7 +63,7 @@ export async function POST(request) {
       is_read_by_customer: false,
       is_read_by_admin: true,
     })
-    .select('id, user_id, sender_id, sender_role, message, is_read_by_customer, is_read_by_admin, created_at')
+    .select('id, user_id, sender_id, sender_role, message, order_id, order_number, is_read_by_customer, is_read_by_admin, created_at')
     .single();
 
   if (error) return Response.json({ error: error.message }, { status: 500 });

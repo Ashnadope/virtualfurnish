@@ -18,7 +18,7 @@ export async function POST(request, { params }) {
   // Fetch the order — confirm ownership & current status
   const { data: order, error: fetchError } = await supabase
     .from('orders')
-    .select('id, status, user_id, payment_status')
+    .select('id, status, user_id, payment_status, stock_allocated')
     .eq('id', orderId)
     .single();
 
@@ -93,6 +93,7 @@ export async function POST(request, { params }) {
   const updateFields = {
     status: 'cancelled',
     updated_at: new Date().toISOString(),
+    stock_allocated: false,
     // Write refund_pending locally when edge function was unreachable/failed
     ...(refundStatus ? { payment_status: refundStatus } : {}),
   };
@@ -112,28 +113,30 @@ export async function POST(request, { params }) {
   // Restore stock for all items in the cancelled order.
   // adjust_variant_stock / adjust_product_stock use SECURITY DEFINER so they
   // bypass RLS and can be called with the user's JWT-based client.
-  try {
-    const { data: items } = await supabase
-      .from('order_items')
-      .select('variant_id, product_id, quantity')
-      .eq('order_id', orderId);
+  if (order.stock_allocated) {
+    try {
+      const { data: items } = await supabase
+        .from('order_items')
+        .select('variant_id, product_id, quantity')
+        .eq('order_id', orderId);
 
-    for (const item of (items ?? [])) {
-      if (item.variant_id) {
-        await supabase.rpc('adjust_variant_stock', {
-          p_variant_id: item.variant_id,
-          p_delta: item.quantity,
-        });
-      } else if (item.product_id) {
-        await supabase.rpc('adjust_product_stock', {
-          p_product_id: item.product_id,
-          p_delta: item.quantity,
-        });
+      for (const item of (items ?? [])) {
+        if (item.variant_id) {
+          await supabase.rpc('adjust_variant_stock', {
+            p_variant_id: item.variant_id,
+            p_delta: item.quantity,
+          });
+        } else if (item.product_id) {
+          await supabase.rpc('adjust_product_stock', {
+            p_product_id: item.product_id,
+            p_delta: item.quantity,
+          });
+        }
       }
+    } catch (err) {
+      // Non-fatal — order is already cancelled; log and continue
+      console.error('Stock restore error for order', orderId, ':', err);
     }
-  } catch (err) {
-    // Non-fatal — order is already cancelled; log and continue
-    console.error('Stock restore error for order', orderId, ':', err);
   }
 
   return Response.json({

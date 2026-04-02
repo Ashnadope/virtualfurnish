@@ -5,6 +5,7 @@ import StripePaymentForm from '@/components/payment/StripePaymentForm';
 import GCashPaymentForm from '@/components/payment/GCashPaymentForm';
 import { paymentService } from '@/services/payment.service';
 import Header from '@/components/common/Header';
+import Sidebar from '@/components/common/Sidebar';
 
 // Force dynamic rendering to prevent prerendering during build
 export const dynamic = 'force-dynamic';
@@ -43,7 +44,21 @@ export default function CheckoutPage() {
           return;
         }
         if (!res.ok) {
-          const { error: errMsg } = await res.json().catch(() => ({}));
+          const body = await res.json().catch(() => ({}));
+          const errMsg = body?.error;
+          if (res.status === 409 && body?.code === 'INSUFFICIENT_STOCK') {
+            const names = (body?.items || [])
+              .map((item) => item?.name)
+              .filter(Boolean)
+              .slice(0, 3)
+              .join(', ');
+            setError(
+              names
+                ? `Stock changed for: ${names}. Please return to cart and adjust quantities.`
+                : 'Some cart items are no longer available in the selected quantity. Please return to cart and adjust quantities.'
+            );
+            return;
+          }
           setError(errMsg ?? 'Failed to initialize checkout');
           return;
         }
@@ -345,6 +360,7 @@ export default function CheckoutPage() {
   if (loading) {
     return (
       <>
+        <Sidebar userRole="customer" />
         <Header />
         <div className="min-h-screen bg-gray-50 pt-20">
           <div className="container mx-auto max-w-4xl p-8">
@@ -361,6 +377,7 @@ export default function CheckoutPage() {
   if (error) {
     return (
       <>
+        <Sidebar userRole="customer" />
         <Header />
         <div className="min-h-screen bg-gray-50 pt-20">
           <div className="container mx-auto max-w-4xl p-8">
@@ -390,6 +407,7 @@ export default function CheckoutPage() {
 
   return (
     <>
+      <Sidebar userRole="customer" />
       <Header />
       <div className="min-h-screen bg-gray-50 pt-20">
         <div className="container mx-auto max-w-6xl p-8">
@@ -397,49 +415,49 @@ export default function CheckoutPage() {
           
           {/* Progress Indicator */}
           <div className="mb-8">
-            <div className="flex items-center justify-center">
+            <div className="flex items-start justify-between gap-2 sm:items-center sm:gap-4">
               {/* Step 1: Cart Review */}
-              <div className="flex items-center">
-                <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
+              <div className="flex min-w-0 flex-col items-center gap-2 sm:flex-row sm:items-center sm:gap-2">
+                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 text-sm sm:h-10 sm:w-10 ${
                   currentStep >= 1 ? 'bg-blue-600 border-blue-600 text-white' : 'border-gray-300 text-gray-400'
                 }`}>
                   {currentStep > 1 ? (
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                   ) : '1'}
                 </div>
-                <span className="ml-2 text-sm font-medium text-gray-700">Cart Review</span>
+                <span className="max-w-[5rem] text-center text-xs font-medium leading-tight text-gray-700 sm:max-w-none sm:text-left sm:text-sm">Cart Review</span>
               </div>
 
               {/* Connector */}
-              <div className={`w-24 h-1 mx-4 ${currentStep >= 2 ? 'bg-blue-600' : 'bg-gray-300'}`}></div>
+              <div className={`mt-4 h-1 min-w-4 flex-1 rounded sm:mt-0 ${currentStep >= 2 ? 'bg-blue-600' : 'bg-gray-300'}`}></div>
 
               {/* Step 2: Shipping */}
-              <div className="flex items-center">
-                <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
+              <div className="flex min-w-0 flex-col items-center gap-2 sm:flex-row sm:items-center sm:gap-2">
+                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 text-sm sm:h-10 sm:w-10 ${
                   currentStep >= 2 ? 'bg-blue-600 border-blue-600 text-white' : 'border-gray-300 text-gray-400'
                 }`}>
                   {currentStep > 2 ? (
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                   ) : '2'}
                 </div>
-                <span className="ml-2 text-sm font-medium text-gray-700">Shipping</span>
+                <span className="max-w-[5rem] text-center text-xs font-medium leading-tight text-gray-700 sm:max-w-none sm:text-left sm:text-sm">Shipping</span>
               </div>
 
               {/* Connector */}
-              <div className={`w-24 h-1 mx-4 ${currentStep >= 3 ? 'bg-blue-600' : 'bg-gray-300'}`}></div>
+              <div className={`mt-4 h-1 min-w-4 flex-1 rounded sm:mt-0 ${currentStep >= 3 ? 'bg-blue-600' : 'bg-gray-300'}`}></div>
 
               {/* Step 3: Payment */}
-              <div className="flex items-center">
-                <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
+              <div className="flex min-w-0 flex-col items-center gap-2 sm:flex-row sm:items-center sm:gap-2">
+                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 text-sm sm:h-10 sm:w-10 ${
                   currentStep >= 3 ? 'bg-blue-600 border-blue-600 text-white' : 'border-gray-300 text-gray-400'
                 }`}>
                   3
                 </div>
-                <span className="ml-2 text-sm font-medium text-gray-700">Payment</span>
+                <span className="max-w-[5rem] text-center text-xs font-medium leading-tight text-gray-700 sm:max-w-none sm:text-left sm:text-sm">Payment</span>
               </div>
             </div>
           </div>
@@ -790,18 +808,18 @@ export default function CheckoutPage() {
                       Select Payment Method
                     </h2>
                     
-                    <div className="flex gap-4 mb-6">
+                    <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:gap-4">
                       <button
                         onClick={() => setPaymentMethod('card')}
-                        className={`flex-1 py-4 px-6 rounded-lg border-2 transition-all ${
+                        className={`min-w-0 flex-1 rounded-lg border-2 px-4 py-4 transition-all sm:px-6 ${
                           paymentMethod === 'card' ?'border-blue-600 bg-blue-50 ring-2 ring-blue-100' :'border-gray-200 hover:border-gray-300'
                         }`}
                       >
-                        <div className="flex items-center justify-center gap-3">
+                        <div className="flex items-center justify-center gap-2 sm:gap-3">
                           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                           </svg>
-                          <span className={`font-semibold ${paymentMethod === 'card' ? 'text-blue-600' : 'text-gray-700'}`}>
+                          <span className={`text-sm font-semibold sm:text-base ${paymentMethod === 'card' ? 'text-blue-600' : 'text-gray-700'}`}>
                             Credit/Debit Card
                           </span>
                         </div>
@@ -809,15 +827,15 @@ export default function CheckoutPage() {
 
                       <button
                         onClick={() => setPaymentMethod('gcash')}
-                        className={`flex-1 py-4 px-6 rounded-lg border-2 transition-all ${
+                        className={`min-w-0 flex-1 rounded-lg border-2 px-4 py-4 transition-all sm:px-6 ${
                           paymentMethod === 'gcash' ?'border-blue-600 bg-blue-50 ring-2 ring-blue-100' :'border-gray-200 hover:border-gray-300'
                         }`}
                       >
-                        <div className="flex items-center justify-center gap-3">
+                        <div className="flex items-center justify-center gap-2 sm:gap-3">
                           <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
                           </svg>
-                          <span className={`font-semibold ${paymentMethod === 'gcash' ? 'text-blue-600' : 'text-gray-700'}`}>
+                          <span className={`text-sm font-semibold sm:text-base ${paymentMethod === 'gcash' ? 'text-blue-600' : 'text-gray-700'}`}>
                             GCash
                           </span>
                         </div>

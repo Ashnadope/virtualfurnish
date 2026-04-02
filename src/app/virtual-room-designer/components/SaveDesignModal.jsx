@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import Icon from '@/components/ui/AppIcon';
 
@@ -8,6 +8,12 @@ export default function SaveDesignModal({ isOpen, onClose, onSave, currentName =
   const [name, setName] = useState(currentName || '');
   const [description, setDescription] = useState(currentDescription || '');
   const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setName(currentName || '');
+    setDescription(currentDescription || '');
+  }, [isOpen, currentName, currentDescription]);
 
   if (!isOpen) return null;
 
@@ -38,17 +44,17 @@ export default function SaveDesignModal({ isOpen, onClose, onSave, currentName =
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm"
+      className="fixed inset-0 z-overlay flex items-start sm:items-center justify-center p-3 sm:p-4 pt-20 sm:pt-4 bg-black bg-opacity-50 backdrop-blur-sm"
       onClick={handleBackdropClick}
     >
-      <div className="bg-surface rounded-lg shadow-xl max-w-md w-full mx-4 overflow-hidden">
+      <div className="bg-surface rounded-lg shadow-xl max-w-md w-full overflow-y-auto max-h-[calc(100vh-5rem)] sm:max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-border">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-              <Icon name="DocumentCheckIcon" size={24} className="text-primary" />
+        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-border">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+              <Icon name="DocumentCheckIcon" size={20} className="text-primary" />
             </div>
-            <h3 className="font-heading font-semibold text-xl text-foreground">
+            <h3 className="font-heading font-semibold text-lg sm:text-xl text-foreground">
               Save Room Design
             </h3>
           </div>
@@ -64,7 +70,7 @@ export default function SaveDesignModal({ isOpen, onClose, onSave, currentName =
 
         {/* Body - Form */}
         <form onSubmit={handleSubmit}>
-          <div className="p-6 space-y-4">
+          <div className="p-4 sm:p-6 space-y-4">
             <div>
               <label className="block font-body text-sm font-medium text-foreground mb-2">
                 Design Name <span className="text-error">*</span>
@@ -116,19 +122,19 @@ export default function SaveDesignModal({ isOpen, onClose, onSave, currentName =
           </div>
 
           {/* Footer - Action Buttons */}
-          <div className="flex gap-3 p-6 border-t border-border bg-background/50">
+          <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 p-4 sm:p-6 border-t border-border bg-background/50">
             <button
               type="button"
               onClick={onClose}
               disabled={isSaving}
-              className="flex-1 px-6 py-2 border border-border text-foreground rounded-lg font-body font-medium hover:bg-surface transition-colors disabled:opacity-50"
+              className="flex-1 px-4 sm:px-6 py-2 border border-border text-foreground rounded-lg font-body text-sm sm:text-base font-medium hover:bg-surface transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSaving || !name.trim()}
-              className="flex-1 px-6 py-2 bg-primary text-white rounded-lg font-body font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              className="flex-1 px-4 sm:px-6 py-2 bg-primary text-white rounded-lg font-body text-sm sm:text-base font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {isSaving ? (
                 <>

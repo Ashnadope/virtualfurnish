@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { productService } from '../../../services/product.service';
 import { useAuth } from '../../../contexts/AuthContext';
 import Header from '../../../components/common/Header';
+import Sidebar from '../../../components/common/Sidebar';
 import Breadcrumb from '../../../components/common/Breadcrumb';
 import ProductCard from './ProductCard';
 import CatalogFilters from './CatalogFilters';
@@ -24,6 +25,7 @@ export default function CatalogInteractive({ initialProducts = [] }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('recommended');
   const [priceRange, setPriceRange] = useState({ min: 0, max: 100000 });
+  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
 
   // ML recommendations (product_id → score map)
   const { user } = useAuth();
@@ -165,6 +167,7 @@ export default function CatalogInteractive({ initialProducts = [] }) {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
+        <Sidebar userRole="customer" />
         <Header />
         <LoadingSpinner />
       </div>
@@ -174,6 +177,7 @@ export default function CatalogInteractive({ initialProducts = [] }) {
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50">
+        <Sidebar userRole="customer" />
         <Header />
         <ErrorMessage 
           message={error}
@@ -185,6 +189,7 @@ export default function CatalogInteractive({ initialProducts = [] }) {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <Sidebar userRole="customer" />
       <Header />
       
       <main className="container mx-auto px-4 py-8 pt-20">
@@ -211,8 +216,22 @@ export default function CatalogInteractive({ initialProducts = [] }) {
 
         {/* Filters and Results */}
         <div className="flex flex-col lg:flex-row gap-6">
+          <div className="lg:hidden">
+            <button
+              onClick={() => setIsMobileFiltersOpen(prev => !prev)}
+              className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
+              aria-expanded={isMobileFiltersOpen}
+              aria-controls="catalog-mobile-filters"
+            >
+              {isMobileFiltersOpen ? 'Hide Filters' : 'Show Filters'}
+            </button>
+          </div>
+
           {/* Sidebar Filters */}
-          <aside className="lg:w-64 flex-shrink-0">
+          <aside
+            id="catalog-mobile-filters"
+            className={`${isMobileFiltersOpen ? 'block' : 'hidden'} lg:block lg:w-64 flex-shrink-0`}
+          >
             <CatalogFilters
               categories={categories}
               selectedCategory={selectedCategory}

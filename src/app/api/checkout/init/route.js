@@ -25,10 +25,44 @@ export async function GET() {
     if (cartResult.error) throw cartResult.error;
     if (profileResult.error) throw profileResult.error;
 
+    const cartData = cartResult.data ?? [];
+    const insufficientItems = cartData
+      .map((item) => {
+        const requested = parseInt(item?.quantity ?? 0, 10) || 0;
+        const available = item?.variant_id
+          ? (parseInt(item?.product_variants?.stock_quantity ?? 0, 10) || 0)
+          : (parseInt(item?.products?.stock_quantity ?? 0, 10) || 0);
+
+        if (requested > available) {
+          return {
+            cartItemId: item?.id,
+            productId: item?.product_id,
+            variantId: item?.variant_id,
+            name: item?.products?.name || 'Item',
+            requested,
+            available,
+          };
+        }
+
+        return null;
+      })
+      .filter(Boolean);
+
+    if (insufficientItems.length > 0) {
+      return NextResponse.json(
+        {
+          code: 'INSUFFICIENT_STOCK',
+          error: 'Some cart items are no longer available in the selected quantity. Please review your cart.',
+          items: insufficientItems,
+        },
+        { status: 409 }
+      );
+    }
+
     return NextResponse.json({
       userId: user.id,
       email: user.email,
-      cartData: cartResult.data ?? [],
+      cartData,
       profile: profileResult.data ?? null,
     });
   } catch (err) {

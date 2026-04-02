@@ -20,6 +20,49 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
+    const sendOutOfStockSupportNotice = async (orderId: string) => {
+      try {
+        const { data: order } = await supabaseClient
+          .from('orders')
+          .select('id, user_id, order_number')
+          .eq('id', orderId)
+          .single();
+
+        if (!order?.user_id) return;
+
+        const { data: adminProfile } = await supabaseClient
+          .from('user_profiles')
+          .select('id')
+          .eq('role', 'admin')
+          .limit(1)
+          .maybeSingle();
+
+        const { data: existingNotice } = await supabaseClient
+          .from('support_messages')
+          .select('id')
+          .eq('user_id', order.user_id)
+          .eq('order_id', order.id)
+          .eq('sender_role', 'admin')
+          .limit(1)
+          .maybeSingle();
+
+        if (existingNotice?.id) return;
+
+        await supabaseClient.from('support_messages').insert({
+          user_id: order.user_id,
+          sender_id: adminProfile?.id || order.user_id,
+          sender_role: 'admin',
+          message: 'One or more furniture items in this paid order became unavailable before fulfillment. Please open this order and cancel it so we can process your refund.',
+          order_id: order.id,
+          order_number: order.order_number,
+          is_read_by_customer: false,
+          is_read_by_admin: true,
+        });
+      } catch (noticeError) {
+        console.error('Failed to send out-of-stock support notice:', noticeError);
+      }
+    };
+
     console.log('Authenticating user...')
     const authHeader = req.headers.get('Authorization')!
     const token = authHeader.replace('Bearer ', '')
@@ -50,6 +93,55 @@ serve(async (req) => {
         JSON.stringify({ error: 'GCash number is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
+    }
+
+    // Pre-check stock before creating/updating payment records.
+    for (const rawItem of (orderData.items || [])) {
+      const item = rawItem || {};
+      const requestedQty = Math.max(1, parseInt(item.quantity || 1));
+
+      if (item.variant_id) {
+        const { data: variant, error: variantError } = await supabaseClient
+          .from('product_variants')
+          .select('id, stock_quantity')
+          .eq('id', item.variant_id)
+          .single();
+
+        if (variantError || !variant) {
+          return new Response(
+            JSON.stringify({ error: 'One or more items are no longer available.' }),
+            { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
+        if ((parseInt(variant.stock_quantity ?? 0) || 0) < requestedQty) {
+          return new Response(
+            JSON.stringify({ error: 'Some items no longer have enough stock. Please update your cart.' }),
+            { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+      } else if (item.product_id || item.id) {
+        const productId = item.product_id || item.id;
+        const { data: product, error: productError } = await supabaseClient
+          .from('products')
+          .select('id, stock_quantity')
+          .eq('id', productId)
+          .single();
+
+        if (productError || !product) {
+          return new Response(
+            JSON.stringify({ error: 'One or more items are no longer available.' }),
+            { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
+        if ((parseInt(product.stock_quantity ?? 0) || 0) < requestedQty) {
+          return new Response(
+            JSON.stringify({ error: 'Some items no longer have enough stock. Please update your cart.' }),
+            { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+      }
     }
 
     const orderNumber = `VF-${new Date().getFullYear()}-${Math.random().toString().substr(2, 8)}`
@@ -222,30 +314,48 @@ serve(async (req) => {
 
     console.log('Payment transaction created')
 
-    // Decrement stock for each item in the order
-    try {
-      const { data: items } = await supabaseClient
-        .from('order_items')
-        .select('variant_id, product_id, quantity')
-        .eq('order_id', order.id);
+    // Atomically decrement stock for the whole order.
+    const { error: stockError } = await supabaseClient.rpc('deduct_order_stock_atomic', {
+      p_order_id: order.id,
+    });
 
-      for (const item of (items ?? [])) {
-        if (item.variant_id) {
-          await supabaseClient.rpc('adjust_variant_stock', {
-            p_variant_id: item.variant_id,
-            p_delta: -(item.quantity),
-          });
-        } else if (item.product_id) {
-          await supabaseClient.rpc('adjust_product_stock', {
-            p_product_id: item.product_id,
-            p_delta: -(item.quantity),
-          });
-        }
+    if (stockError) {
+      const msg = String(stockError?.message || '');
+      const isInsufficient = msg.includes('INSUFFICIENT_STOCK');
+      console.error('Stock decrement error for order', order.id, ':', stockError?.message);
+
+      if (isInsufficient) {
+        await supabaseClient
+          .from('orders')
+          .update({
+            status: 'processing',
+            payment_status: 'succeeded',
+            stock_allocated: false,
+            notes: 'Stock unavailable after GCash payment confirmation. Customer was asked via support to cancel the order for refund processing.',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', order.id);
+
+        await sendOutOfStockSupportNotice(order.id);
+
+        return new Response(
+          JSON.stringify({
+            success: false,
+            orderId: order.id,
+            orderNumber: order.order_number,
+            referenceNumber: gcashReferenceId,
+            status: 'action_required',
+            message: 'Payment was received, but stock became unavailable. Check support for cancellation and refund instructions.'
+          }),
+          { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
       }
-      console.log('Stock decremented for order', order.id, 'items:', items?.length ?? 0);
-    } catch (stockErr: any) {
-      // Non-fatal — payment is confirmed, log and continue
-      console.error('Stock decrement error for order', order.id, ':', stockErr?.message);
+    } else {
+      await supabaseClient
+        .from('orders')
+        .update({ stock_allocated: true, updated_at: new Date().toISOString() })
+        .eq('id', order.id);
+      console.log('Stock decremented atomically for order', order.id);
     }
 
     console.log('GCash payment processed successfully')

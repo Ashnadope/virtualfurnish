@@ -61,6 +61,22 @@ function PaymentFormInner({
         if (onError) onError(stripeError)
       } else if (paymentIntent) {
         if (paymentIntent?.status === 'succeeded') {
+          const confirmationResponse = await fetch('/api/checkout/confirm-payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ paymentIntentId: paymentIntent?.id }),
+          })
+
+          const confirmationResult = await confirmationResponse.json().catch(() => ({}))
+
+          if (!confirmationResponse.ok) {
+            throw new Error(confirmationResult?.error || 'Failed to confirm payment')
+          }
+
+          if (!confirmationResult?.success) {
+            throw new Error('Payment was captured, but order confirmation failed. Please contact support with your payment reference.')
+          }
+
           const successResult = {
             paymentIntent,
             orderId: orderData?.orderId,
@@ -82,7 +98,7 @@ function PaymentFormInner({
       }
     } catch (error) {
       console.error('Payment processing error:', error)
-      setErrorMessage('An unexpected error occurred. Please try again.')
+      setErrorMessage(error?.message || 'An unexpected error occurred. Please try again.')
       if (onError) onError(error)
     } finally {
       setIsProcessing(false)
@@ -119,6 +135,7 @@ function PaymentFormInner({
               },
               layout: 'tabs'
             }}
+            onReady={() => setPaymentReady(true)}
           />
         </div>
 

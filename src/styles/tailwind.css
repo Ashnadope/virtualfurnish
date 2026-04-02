@@ -150,4 +150,32 @@
   .scale-press {
     transform: scale(0.98);
   }
+
+  /* Global mobile typography normalization for large utility sizes. */
+  @media (max-width: 639px) {
+    .text-5xl {
+      font-size: 2.25rem;
+      line-height: 2.5rem;
+    }
+
+    .text-4xl {
+      font-size: 2rem;
+      line-height: 2.25rem;
+    }
+
+    .text-3xl {
+      font-size: 1.5rem;
+      line-height: 2rem;
+    }
+
+    .text-2xl {
+      font-size: 1.25rem;
+      line-height: 1.75rem;
+    }
+
+    .text-xl {
+      font-size: 1.125rem;
+      line-height: 1.75rem;
+    }
+  }
 }

@@ -6,11 +6,15 @@ import Icon from '@/components/ui/AppIcon';
 import AppImage from '@/components/ui/AppImage';
 
 export default function FurniturePalette({ furnitureItems, onAddFurniture, isOpen: externalIsOpen, onToggle, aiRecs = [] }) {
+  const LONG_PRESS_MS = 280;
+  const MOVE_TOLERANCE_PX = 8;
+  const DRAG_THRESHOLD_PX = 14;
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [internalOpen, setInternalOpen] = useState(false);
   // Touch drag state for drag-from-catalog-to-canvas on mobile
-  const touchDragStateRef = useRef(null); // { item, startX, startY, ghost }
+  const touchDragStateRef = useRef(null); // { item, startX, startY, ghost, longPressReady, cancelled, longPressTimer }
   const didTouchDragRef = useRef(false);
 
   const isPaletteOpen = externalIsOpen !== undefined ? externalIsOpen : internalOpen;
@@ -108,22 +112,57 @@ export default function FurniturePalette({ furnitureItems, onAddFurniture, isOpe
   const handleItemTouchStart = (e, item) => {
     const touch = e.touches[0];
     didTouchDragRef.current = false;
-    touchDragStateRef.current = { item, startX: touch.clientX, startY: touch.clientY, ghost: null };
+    const state = {
+      item,
+      startX: touch.clientX,
+      startY: touch.clientY,
+      ghost: null,
+      longPressReady: false,
+      cancelled: false,
+      longPressTimer: null,
+    };
+
+    state.longPressTimer = setTimeout(() => {
+      if (!state.cancelled) {
+        state.longPressReady = true;
+      }
+    }, LONG_PRESS_MS);
+
+    touchDragStateRef.current = state;
   };
 
   const handleItemTouchMove = (e, item) => {
     if (!touchDragStateRef.current) return;
-    e.stopPropagation();
+
     const touch = e.touches[0];
     const state = touchDragStateRef.current;
     const dx = touch.clientX - state.startX;
     const dy = touch.clientY - state.startY;
-    if (!state.ghost && Math.hypot(dx, dy) > 10) {
+    const absX = Math.abs(dx);
+    const absY = Math.abs(dy);
+    const travel = Math.hypot(dx, dy);
+
+    // Before long-press triggers, prioritize native vertical scrolling.
+    if (!state.longPressReady && travel > MOVE_TOLERANCE_PX) {
+      if (absY > absX) {
+        state.cancelled = true;
+        if (state.longPressTimer) {
+          clearTimeout(state.longPressTimer);
+          state.longPressTimer = null;
+        }
+        return;
+      }
+    }
+
+    // Start drag only after long-press is armed and movement is intentional.
+    if (!state.ghost && state.longPressReady && travel > DRAG_THRESHOLD_PX) {
       state.ghost = createGhostElement(item, touch.clientX, touch.clientY);
       didTouchDragRef.current = true;
     }
+
     if (state.ghost) {
       e.preventDefault(); // stop page scroll while cross-component dragging
+      e.stopPropagation();
       state.ghost.style.left = `${touch.clientX - 35}px`;
       state.ghost.style.top = `${touch.clientY - 35}px`;
     }
@@ -132,6 +171,9 @@ export default function FurniturePalette({ furnitureItems, onAddFurniture, isOpe
   const handleItemTouchEnd = (e, item) => {
     const state = touchDragStateRef.current;
     touchDragStateRef.current = null;
+    if (state?.longPressTimer) {
+      clearTimeout(state.longPressTimer);
+    }
     if (!state?.ghost) return;
     document.body.removeChild(state.ghost);
     const touch = e.changedTouches[0];
@@ -153,6 +195,17 @@ export default function FurniturePalette({ furnitureItems, onAddFurniture, isOpe
     }
   };
 
+  const handleItemTouchCancel = () => {
+    const state = touchDragStateRef.current;
+    touchDragStateRef.current = null;
+    if (state?.longPressTimer) {
+      clearTimeout(state.longPressTimer);
+    }
+    if (state?.ghost) {
+      document.body.removeChild(state.ghost);
+    }
+  };
+
   const handleDragStart = (e, furniture) => {
     e?.dataTransfer?.setData('application/json', JSON.stringify(furniture));
     if (e?.dataTransfer) {
@@ -169,10 +222,10 @@ export default function FurniturePalette({ furnitureItems, onAddFurniture, isOpe
     <>
       <button
         onClick={() => setIsPaletteOpen(!isPaletteOpen)}
-        className="lg:hidden fixed bottom-20 right-4 z-[170] p-3 rounded-full bg-primary text-primary-foreground shadow-elevated"
+        className="lg:hidden fixed bottom-20 right-4 z-[170] p-2.5 rounded-full bg-primary text-primary-foreground shadow-elevated"
         aria-label="Toggle furniture palette"
       >
-        <Icon name={isPaletteOpen ? 'XMarkIcon' : 'Squares2X2Icon'} size={24} variant="solid" />
+        <Icon name={isPaletteOpen ? 'XMarkIcon' : 'Squares2X2Icon'} size={20} variant="solid" />
       </button>
       <div
         className={`
@@ -182,8 +235,8 @@ export default function FurniturePalette({ furnitureItems, onAddFurniture, isOpe
         `}
       >
         <div className="flex flex-col h-full">
-          <div className="px-4 py-3 border-b border-border">
-            <div className="flex items-center justify-between mb-3">
+          <div className="px-3 sm:px-4 py-2.5 sm:py-3 border-b border-border">
+            <div className="flex items-center justify-between mb-2.5 sm:mb-3">
               <h2 className="font-heading font-semibold text-base text-foreground">Furniture Catalog</h2>
               <button
                 onClick={() => setIsPaletteOpen(false)}
@@ -206,12 +259,12 @@ export default function FurniturePalette({ furnitureItems, onAddFurniture, isOpe
                 placeholder="Search furniture..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e?.target?.value)}
-                className="w-full pl-10 pr-4 py-2 rounded-md border border-input bg-background text-foreground font-body text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                className="w-full pl-10 pr-3 sm:pr-4 py-2 rounded-md border border-input bg-background text-foreground font-body text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
           </div>
 
-          <div className="px-4 py-3 border-b border-border overflow-x-auto">
+          <div className="px-3 sm:px-4 py-2.5 sm:py-3 border-b border-border overflow-x-auto">
             <div className="flex gap-2">
               {categories?.map((category) => (
                 <button
@@ -231,8 +284,8 @@ export default function FurniturePalette({ furnitureItems, onAddFurniture, isOpe
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4" style={{ overscrollBehavior: 'contain' }}>
-            <div className="grid grid-cols-2 gap-3">
+          <div className="flex-1 overflow-y-auto p-3 sm:p-4" style={{ overscrollBehavior: 'contain' }}>
+            <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
               {filteredFurniture?.map((item) => {
                 const aiRec = aiRecMap.get(item?.id) ?? aiRecMap.get(item?.productId);
                 return (
@@ -245,6 +298,7 @@ export default function FurniturePalette({ furnitureItems, onAddFurniture, isOpe
                   onTouchStart={(e) => handleItemTouchStart(e, item)}
                   onTouchMove={(e) => handleItemTouchMove(e, item)}
                   onTouchEnd={(e) => handleItemTouchEnd(e, item)}
+                  onTouchCancel={handleItemTouchCancel}
                 >
                   <div className="aspect-square bg-muted relative overflow-hidden">
                     <AppImage

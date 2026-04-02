@@ -7,12 +7,13 @@ import AppImage from '../../../components/ui/AppImage';
 
 export default function OrderCard({ 
   order, 
+  isHighlighted = false,
+  initialExpanded = false,
   onDownloadReceipt,
-  onReorder,
   onContactSupport,
   onCancelOrder
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(initialExpanded);
   const [cancelling, setCancelling] = useState(false);
 
   const CANCELLABLE_STATUSES = ['pending', 'processing', 'packing'];
@@ -52,40 +53,44 @@ export default function OrderCard({
     return `₱${amount?.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
+  const totalItems = typeof order?.totalItems === 'number'
+    ? order.totalItems
+    : (order?.items || []).reduce((sum, item) => sum + (parseInt(item?.quantity || 0, 10) || 0), 0);
+
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
+    <div className={`bg-white rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-shadow ${isHighlighted ? 'border-primary ring-2 ring-primary/20' : 'border-gray-200'}`}>
       {/* Order Header */}
-      <div className="p-6">
-        <div className="flex items-start justify-between">
+      <div className="p-4 sm:p-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex-1">
-            <div className="flex items-center gap-3">
-              <h3 className="text-lg font-semibold text-gray-900">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="max-w-[11rem] truncate text-sm font-semibold text-gray-900 sm:max-w-none sm:text-lg" title={`Order #${order?.orderNumber}`}>
                 Order #{order?.orderNumber}
               </h3>
-              <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(order?.status)}`}>
+              <span className={`px-2 py-1 rounded-full text-[11px] font-medium border sm:px-3 sm:text-xs ${getStatusColor(order?.status)}`}>
                 {order?.status?.toUpperCase()}
               </span>
             </div>
-            <p className="text-sm text-gray-600 mt-1">
+            <p className="mt-1 text-xs text-gray-600 sm:text-sm">
               Placed on {formatDate(order?.createdAt)}
             </p>
           </div>
-          <div className="text-right">
-            <p className="text-2xl font-bold text-gray-900">
+          <div className="text-left sm:text-right">
+            <p className="text-xl font-bold text-gray-900 sm:text-2xl">
               {formatCurrency(order?.totalAmount)}
             </p>
-            <p className="text-xs text-gray-600 mt-1">
-              {order?.items?.length} {order?.items?.length === 1 ? 'item' : 'items'}
+            <p className="mt-1 text-[11px] text-gray-600 sm:text-xs">
+              {totalItems} {totalItems === 1 ? 'item' : 'items'}
             </p>
           </div>
         </div>
 
         {/* Order Items Preview */}
-        <div className="mt-4 flex gap-3 overflow-x-auto pb-2">
+        <div className="mt-3 flex gap-2 overflow-x-auto pb-1 sm:mt-4 sm:gap-3 sm:pb-2">
           {order?.items?.slice(0, 4)?.map((item, index) => (
             <div 
               key={item?.id || index}
-              className="flex-shrink-0 w-20 h-20 bg-gray-100 rounded-md overflow-hidden"
+              className="flex-shrink-0 w-16 h-16 bg-gray-100 rounded-md overflow-hidden sm:w-20 sm:h-20"
             >
               <AppImage
                 src={item?.imageUrl || '/assets/images/no_image.png'}
@@ -95,8 +100,8 @@ export default function OrderCard({
             </div>
           ))}
           {order?.items?.length > 4 && (
-            <div className="flex-shrink-0 w-20 h-20 bg-gray-100 rounded-md flex items-center justify-center">
-              <span className="text-sm font-medium text-gray-600">
+            <div className="flex-shrink-0 w-16 h-16 bg-gray-100 rounded-md flex items-center justify-center sm:w-20 sm:h-20">
+              <span className="text-xs font-medium text-gray-600 sm:text-sm">
                 +{order?.items?.length - 4}
               </span>
             </div>
@@ -104,10 +109,10 @@ export default function OrderCard({
         </div>
 
         {/* Action Buttons */}
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap gap-1.5 sm:mt-4 sm:gap-2">
           <button
             onClick={() => setExpanded(!expanded)}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+            className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors sm:px-4 sm:py-2 sm:text-sm"
           >
             {expanded ? 'Hide Details' : 'View Details'}
           </button>
@@ -115,19 +120,13 @@ export default function OrderCard({
             onClick={() => onDownloadReceipt?.(order)}
             disabled={!isPaymentConfirmed}
             title={!isPaymentConfirmed ? 'Receipt available once payment is confirmed' : 'Download Receipt'}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed sm:px-4 sm:py-2 sm:text-sm"
           >
             Receipt
           </button>
-          <button
-            onClick={() => onReorder?.(order)}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-          >
-            Reorder Items
-          </button>
           <Link
             href={`/support?order=${encodeURIComponent(order?.orderNumber)}`}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+            className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors sm:px-4 sm:py-2 sm:text-sm"
           >
             Contact Support
           </Link>
@@ -135,7 +134,7 @@ export default function OrderCard({
             <button
               onClick={handleCancel}
               disabled={cancelling}
-              className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors sm:gap-2 sm:px-4 sm:py-2 sm:text-sm"
             >
               {cancelling && (
                 <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -151,7 +150,7 @@ export default function OrderCard({
 
       {/* Expanded Details */}
       {expanded && (
-        <div className="border-t border-gray-200 bg-gray-50 p-6">
+        <div className="border-t border-gray-200 bg-gray-50 p-4 sm:p-6">
           {/* Order Items */}
           <div className="space-y-3">
             <h4 className="font-semibold text-gray-900">Order Items</h4>
@@ -321,6 +320,7 @@ OrderCard.propTypes = {
     createdAt: PropTypes?.string,
     updatedAt: PropTypes?.string,
     shippingAddress: PropTypes?.object,
+    totalItems: PropTypes?.number,
     items: PropTypes?.arrayOf(PropTypes?.shape({
       id: PropTypes?.string,
       name: PropTypes?.string,
@@ -332,8 +332,9 @@ OrderCard.propTypes = {
       imageUrl: PropTypes?.string
     }))
   })?.isRequired,
+  isHighlighted: PropTypes?.bool,
+  initialExpanded: PropTypes?.bool,
   onDownloadReceipt: PropTypes?.func,
-  onReorder: PropTypes?.func,
   onContactSupport: PropTypes?.func,
   onCancelOrder: PropTypes?.func,
 };

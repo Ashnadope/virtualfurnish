@@ -26,7 +26,7 @@ export default function RecentDesignCard({ design, onContinue, onShare }) {
           {design?.name}
         </h4>
         <p className="font-body text-sm text-muted-foreground mb-4">
-          {design?.itemCount} items • {design?.roomType}
+          {design?.itemCount} furniture item{design?.itemCount === 1 ? '' : 's'}
         </p>
         <div className="flex gap-2">
           <button

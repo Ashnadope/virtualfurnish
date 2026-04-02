@@ -12,6 +12,9 @@ export default function CartItem({ item, onUpdateQuantity, onRemove, disabled })
   const itemQuantity = parseInt(item?.quantity || 0);
   const itemTotal = itemPrice * itemQuantity;
   const stockAvailable = parseInt(variant?.stock_quantity || 0);
+  const variantLabels = [variant?.name, variant?.color]
+    .map((value) => value?.trim())
+    .filter((value, index, values) => value && values.findIndex((entry) => entry.toLowerCase() === value.toLowerCase()) === index);
 
   const handleQuantityChange = (newQuantity) => {
     if (newQuantity < 1 || newQuantity > stockAvailable) return;
@@ -44,19 +47,13 @@ export default function CartItem({ item, onUpdateQuantity, onRemove, disabled })
                 {product?.name}
               </h3>
               
-              {variant && (
+              {variantLabels.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-1">
-                  {variant?.name && (
-                    <span className="inline-flex items-center px-2 py-1 bg-muted text-muted-foreground text-xs rounded">
-                      {variant?.name}
+                  {variantLabels.map((label) => (
+                    <span key={label.toLowerCase()} className="inline-flex items-center px-2 py-1 bg-muted text-muted-foreground text-xs rounded">
+                      {label}
                     </span>
-                  )}
-                  {variant?.color && (
-                    <span className="inline-flex items-center px-2 py-1 bg-muted text-muted-foreground text-xs rounded">
-                      {variant?.color}
-                    </span>
-                  )}
-
+                  ))}
                 </div>
               )}
 
@@ -78,9 +75,9 @@ export default function CartItem({ item, onUpdateQuantity, onRemove, disabled })
           </div>
 
           {/* Price and Quantity */}
-          <div className="flex items-center justify-between mt-4">
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             {/* Quantity Controls */}
-            <div className="flex items-center gap-3">
+            <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
               <button
                 onClick={() => handleQuantityChange(itemQuantity - 1)}
                 disabled={disabled || itemQuantity <= 1}
@@ -103,14 +100,14 @@ export default function CartItem({ item, onUpdateQuantity, onRemove, disabled })
                 <Icon name="PlusIcon" size={16} variant="outline" />
               </button>
 
-              <span className="font-body text-xs text-muted-foreground ml-2">
+              <span className="basis-full font-body text-xs text-muted-foreground sm:basis-auto sm:ml-2">
                 {stockAvailable > 0 ? `${stockAvailable} available` : 'Out of stock'}
               </span>
             </div>
 
             {/* Price */}
-            <div className="text-right">
-              <p className="font-heading font-semibold text-lg text-foreground">
+            <div className="w-full text-left sm:w-auto sm:text-right">
+              <p className="font-heading font-semibold text-base text-foreground sm:text-lg">
                 ₱{itemTotal?.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
               </p>
               <p className="font-body text-xs text-muted-foreground">

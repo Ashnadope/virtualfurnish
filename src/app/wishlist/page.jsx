@@ -6,7 +6,9 @@ import PropTypes from 'prop-types';
 import { useAuth } from '@/hooks/auth.hook';
 import { wishlistService } from '@/services/wishlist.service';
 import { cartService } from '@/services/cart.service';
+import Sidebar from '@/components/common/Sidebar';
 import Header from '@/components/common/Header';
+import Breadcrumb from '@/components/common/Breadcrumb';
 import AppImage from '@/components/ui/AppImage';
 
 
@@ -169,24 +171,31 @@ export default function WishlistPage() {
     return (
       <div className="min-h-screen bg-gray-50">
         <Header />
-        <div className="container mx-auto px-4 py-16 text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Please Sign In</h2>
-          <p className="text-gray-600 mb-8">You need to be signed in to view your wishlist</p>
-          <button
-            onClick={() => router?.push('/login')}
-            className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Sign In
-          </button>
-        </div>
+        <main className="pt-16">
+          <div className="container mx-auto px-4 py-16 text-center">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Please Sign In</h2>
+            <p className="text-gray-600 mb-8">You need to be signed in to view your wishlist</p>
+            <button
+              onClick={() => router?.push('/login')}
+              className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Sign In
+            </button>
+          </div>
+        </main>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <Sidebar userRole="customer" />
       <Header />
+      <main className="pt-16">
       <div className="container mx-auto px-4 py-8">
+        <div className="mb-6">
+          <Breadcrumb />
+        </div>
         {/* Page Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">My Wishlist</h1>
@@ -310,6 +319,7 @@ export default function WishlistPage() {
           </div>
         )}
       </div>
+      </main>
     </div>
   );
 }

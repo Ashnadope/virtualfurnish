@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 
@@ -14,11 +14,34 @@ export default function CartInteractive({ initialItems = [] }) {
   const router = useRouter();
   const [cartItems, setCartItems] = useState(initialItems);
   const [error, setError] = useState(null);
+  const [guardNotice, setGuardNotice] = useState(null);
   const [updating, setUpdating] = useState(false);
+
+  const runOutOfStockGuard = async (itemsToCheck) => {
+    const { movedCount, movedItemNames, error: guardError } = await cartService.moveOutOfStockItemsToWishlist(itemsToCheck);
+
+    if (guardError) {
+      setError(guardError);
+      return false;
+    }
+
+    if (movedCount > 0) {
+      const namesPreview = (movedItemNames || []).slice(0, 3).join(', ');
+      const suffix = movedCount > 3 ? ` and ${movedCount - 3} more` : '';
+      setGuardNotice(
+        movedCount === 1
+          ? `${namesPreview || 'An item'} went out of stock and was moved to your wishlist.`
+          : `${namesPreview || 'Some items'}${suffix} went out of stock and were moved to your wishlist.`
+      );
+      return true;
+    }
+
+    return false;
+  };
 
   // No useEffect initial load — items come from the server via initialItems prop
   // Called after mutations to refresh the list without a full-page spinner
-  const loadCartItems = async () => {
+  const loadCartItems = async ({ runGuard = true } = {}) => {
     setError(null);
 
     const { data, error: fetchError } = await cartService?.getCartItems();
@@ -26,9 +49,21 @@ export default function CartInteractive({ initialItems = [] }) {
     if (fetchError) {
       setError(fetchError);
     } else {
-      setCartItems(data || []);
+      const nextItems = data || [];
+      setCartItems(nextItems);
+
+      if (runGuard) {
+        const moved = await runOutOfStockGuard(nextItems);
+        if (moved) {
+          await loadCartItems({ runGuard: false });
+        }
+      }
     }
   };
+
+  useEffect(() => {
+    loadCartItems({ runGuard: true });
+  }, []);
 
   const handleUpdateQuantity = async (cartItemId, newQuantity) => {
     setUpdating(true);
@@ -84,6 +119,13 @@ export default function CartInteractive({ initialItems = [] }) {
     }, 0);
   };
 
+  const calculateTotalItems = () => {
+    return cartItems?.reduce((sum, item) => {
+      const itemQuantity = parseInt(item?.quantity || 0);
+      return sum + itemQuantity;
+    }, 0);
+  };
+
   const calculateTotal = () => {
     const subtotal = calculateSubtotal();
     const shipping = subtotal > 0 ? 500 : 0; // ₱500 flat shipping
@@ -126,7 +168,7 @@ export default function CartInteractive({ initialItems = [] }) {
         <div>
           <h1 className="font-heading text-3xl font-bold text-foreground">Shopping Cart</h1>
           <p className="font-body text-muted-foreground mt-1">
-            {cartItems?.length} {cartItems?.length === 1 ? 'item' : 'items'} in your cart
+            {calculateTotalItems()} {calculateTotalItems() === 1 ? 'item' : 'items'} in your cart
           </p>
         </div>
         
@@ -153,6 +195,16 @@ export default function CartInteractive({ initialItems = [] }) {
         </div>
       )}
 
+      {guardNotice && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+          <Icon name="InformationCircleIcon" size={16} variant="solid" className="text-amber-600 flex-shrink-0" />
+          {guardNotice}
+          <button onClick={() => setGuardNotice(null)} className="ml-auto text-amber-500 hover:text-amber-700">
+            <Icon name="XMarkIcon" size={15} />
+          </button>
+        </div>
+      )}
+
       {/* Cart Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Cart Items */}
@@ -174,7 +226,7 @@ export default function CartInteractive({ initialItems = [] }) {
             subtotal={calculateSubtotal()}
             shipping={cartItems?.length > 0 ? 500 : 0}
             total={calculateTotal()}
-            itemCount={cartItems?.length}
+            itemCount={calculateTotalItems()}
             onCheckout={handleCheckout}
             disabled={updating || cartItems?.length === 0}
           />

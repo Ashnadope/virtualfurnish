@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'next/navigation';
 import PropTypes from 'prop-types';
 import Sidebar from '@/components/common/Sidebar';
 import Header from '@/components/common/Header';
@@ -20,10 +19,9 @@ import { cartService } from '@/services/cart.service';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
-export default function VirtualRoomDesignerInteractive({ initialFurnitureData }) {
+export default function VirtualRoomDesignerInteractive({ initialFurnitureData, initialDesignId }) {
   const { user, loading: authLoading } = useAuth();
-  const searchParams = useSearchParams();
-  const designId = searchParams.get('design');
+  const designId = initialDesignId || null;
   const canvasRef = useRef(null);
   
   const [uploadedImage, setUploadedImage] = useState(null);
@@ -691,7 +689,7 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
       <Sidebar userRole="customer" />
       <Header userRole="customer" userName="John Doe" />
       <main className="pt-16">
-        <div className="p-3 lg:p-6">
+        <div className="p-2 sm:p-3 lg:p-6">
           <div className="mb-6">
             <Breadcrumb />
           </div>
@@ -726,13 +724,13 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
             </div>
           ) : (
             <>
-              <div className="mb-6">
+              <div className="mb-4 sm:mb-6">
                 <div className="flex items-start sm:items-center justify-between flex-wrap gap-3">
                   <div>
-                    <h1 className="font-heading font-bold text-2xl text-foreground mb-2">
+                    <h1 className="font-heading font-bold text-xl sm:text-2xl text-foreground mb-1 sm:mb-2">
                       Virtual Room Designer
                     </h1>
-                    <p className="font-body text-muted-foreground">
+                    <p className="font-body text-sm sm:text-base text-muted-foreground">
                       Upload your room photo and get AI-powered furniture recommendations
                     </p>
                   </div>
@@ -758,10 +756,10 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
                     {!uploadedImage && (
                       <button
                         onClick={() => setShowUploadModal(true)}
-                        className="flex items-center gap-2 px-6 py-3 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-fast"
+                        className="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-fast"
                       >
-                        <Icon name="CloudArrowUpIcon" size={20} variant="solid" />
-                        <span className="font-body font-medium">Upload Room Photo</span>
+                        <Icon name="CloudArrowUpIcon" size={18} variant="solid" />
+                        <span className="font-body text-sm sm:text-base font-medium">Upload Room Photo</span>
                       </button>
                     )}
                   </div>
@@ -782,9 +780,9 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
               )}
 
               {aiAnalysis && showAnalysisPanel && (
-                <div className="bg-surface border border-border rounded-lg p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-heading font-semibold text-lg text-foreground">
+                <div className="bg-surface border border-border rounded-lg p-4 sm:p-6">
+                  <div className="flex items-center justify-between mb-3 sm:mb-4">
+                    <h3 className="font-heading font-semibold text-base sm:text-lg text-foreground">
                       AI Room Analysis
                     </h3>
                     <button
@@ -800,7 +798,7 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
                       <h4 className="font-body font-semibold text-foreground mb-2">
                         Room Details
                       </h4>
-                      <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div className="grid grid-cols-2 gap-2 sm:gap-3 text-xs sm:text-sm">
                         <div>
                           <span className="text-muted-foreground">Type:</span>
                           <span className="ml-2 text-foreground">{aiAnalysis?.roomAnalysis?.roomType}</span>
@@ -1047,20 +1045,20 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
               </div>
             </div>
           ) : (
-            <div className="bg-surface rounded-lg border border-border p-12 text-center">
-              <Icon name="PhotoIcon" size={96} variant="outline" className="mx-auto mb-6 text-muted-foreground" />
-              <h2 className="font-heading font-semibold text-xl text-foreground mb-3">
+            <div className="bg-surface rounded-lg border border-border p-6 sm:p-12 text-center">
+              <Icon name="PhotoIcon" size={72} variant="outline" className="mx-auto mb-4 sm:mb-6 text-muted-foreground" />
+              <h2 className="font-heading font-semibold text-lg sm:text-xl text-foreground mb-2 sm:mb-3">
                 Start Your AI-Powered Room Design
               </h2>
-              <p className="font-body text-muted-foreground mb-6 max-w-md mx-auto">
+              <p className="font-body text-sm sm:text-base text-muted-foreground mb-5 sm:mb-6 max-w-md mx-auto">
                 Upload a photo of your room to get AI-powered furniture recommendations based on colors, style, and spatial layout.
               </p>
               <button
                 onClick={() => setShowUploadModal(true)}
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-fast"
+                className="inline-flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-fast"
               >
-                <Icon name="CloudArrowUpIcon" size={20} variant="solid" />
-                <span className="font-body font-medium">Upload Room Photo</span>
+                <Icon name="CloudArrowUpIcon" size={18} variant="solid" />
+                <span className="font-body text-sm sm:text-base font-medium">Upload Room Photo</span>
               </button>
             </div>
           )}
@@ -1091,6 +1089,7 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData })
 }
 
 VirtualRoomDesignerInteractive.propTypes = {
+  initialDesignId: PropTypes?.string,
   initialFurnitureData: PropTypes?.arrayOf(PropTypes?.shape({
     id: PropTypes?.string?.isRequired,
     name: PropTypes?.string?.isRequired,

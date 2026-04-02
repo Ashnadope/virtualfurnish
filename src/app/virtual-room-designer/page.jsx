@@ -9,7 +9,7 @@ export const metadata = {
   description: 'Upload your room photo and arrange furniture with AI-powered layout suggestions and color matching recommendations from Brosas Furniture Store.'
 };
 
-export default async function VirtualRoomDesignerPage() {
+export default async function VirtualRoomDesignerPage({ searchParams }) {
   // Fetch products from database
   const { data: products = [], error } = await productService.getAllProducts();
 
@@ -51,5 +51,5 @@ export default async function VirtualRoomDesignerPage() {
     }));
   });
 
-  return <VirtualRoomDesignerInteractive initialFurnitureData={furnitureData} />;
+  return <VirtualRoomDesignerInteractive initialFurnitureData={furnitureData} initialDesignId={searchParams?.design || null} />;
 }

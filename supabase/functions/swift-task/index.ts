@@ -28,6 +28,49 @@ serve(async (req) => {
 
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
+  const sendOutOfStockSupportNotice = async (orderId: string) => {
+    try {
+      const { data: order } = await supabase
+        .from('orders')
+        .select('id, user_id, order_number')
+        .eq('id', orderId)
+        .single();
+
+      if (!order?.user_id) return;
+
+      const { data: adminProfile } = await supabase
+        .from('user_profiles')
+        .select('id')
+        .eq('role', 'admin')
+        .limit(1)
+        .maybeSingle();
+
+      const { data: existingNotice } = await supabase
+        .from('support_messages')
+        .select('id')
+        .eq('user_id', order.user_id)
+        .eq('order_id', order.id)
+        .eq('sender_role', 'admin')
+        .limit(1)
+        .maybeSingle();
+
+      if (existingNotice?.id) return;
+
+      await supabase.from('support_messages').insert({
+        user_id: order.user_id,
+        sender_id: adminProfile?.id || order.user_id,
+        sender_role: 'admin',
+        message: 'One or more furniture items in this paid order became unavailable before fulfillment. Please open this order and cancel it so we can process your refund.',
+        order_id: order.id,
+        order_number: order.order_number,
+        is_read_by_customer: false,
+        is_read_by_admin: true,
+      });
+    } catch (noticeError) {
+      console.error('Failed to send out-of-stock support notice:', noticeError);
+    }
+  };
+
   // Helper: find order by payment_intent id or order_number in metadata
   const findOrder = async (piId?: string | null, orderNumber?: string | null) => {
     try {
@@ -135,31 +178,43 @@ serve(async (req) => {
             console.error('Failed updating order (pi):', err);
           }
 
-          // Decrement stock for each item in the order (only on payment_intent.succeeded
-          // to avoid double-decrement — charge.succeeded fires for the same payment too)
+          // Atomically decrement stock for the whole order.
+          // If stock is insufficient, mark order for refund workflow.
           try {
-            const { data: items } = await supabase
-              .from('order_items')
-              .select('variant_id, product_id, quantity')
-              .eq('order_id', orderId);
+            const { error: stockError } = await supabase.rpc('deduct_order_stock_atomic', {
+              p_order_id: orderId,
+            });
 
-            for (const item of (items ?? [])) {
-              if (item.variant_id) {
-                await supabase.rpc('adjust_variant_stock', {
-                  p_variant_id: item.variant_id,
-                  p_delta: -(item.quantity),
-                });
-              } else if (item.product_id) {
-                await supabase.rpc('adjust_product_stock', {
-                  p_product_id: item.product_id,
-                  p_delta: -(item.quantity),
-                });
+            if (stockError) {
+              const msg = String(stockError?.message || '');
+              const isInsufficient = msg.includes('INSUFFICIENT_STOCK');
+
+              console.error('Stock decrement error for order', orderId, ':', stockError);
+
+              if (isInsufficient) {
+                await supabase
+                  .from('orders')
+                  .update({
+                    status: 'processing',
+                    payment_status: 'succeeded',
+                    stock_allocated: false,
+                    notes: 'Stock unavailable after payment confirmation. Customer was asked via support to cancel the order for refund processing.',
+                    updated_at: new Date().toISOString(),
+                  })
+                  .eq('id', orderId);
+                await sendOutOfStockSupportNotice(orderId);
+                console.warn('Order kept cancellable and customer notified via support due to insufficient stock:', orderId);
               }
+            } else {
+              await supabase
+                .from('orders')
+                .update({ stock_allocated: true, updated_at: new Date().toISOString() })
+                .eq('id', orderId);
+              console.log('Stock decremented atomically for order', orderId);
             }
-            console.log('Stock decremented for order', orderId, 'items:', items?.length ?? 0);
           } catch (err) {
-            // Non-fatal — payment is confirmed, stock update failure should not fail the webhook
-            console.error('Stock decrement error for order', orderId, ':', err);
+            // Non-fatal — payment is confirmed, stock update failure should not fail the webhook.
+            console.error('Unexpected stock decrement error for order', orderId, ':', err);
           }
         }
         break;

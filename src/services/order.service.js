@@ -87,7 +87,7 @@ export const orderService = {
       // Convert to camelCase
       return data?.map(order => ({
         id: order?.id,
-        orderNumber: order?.order_number,
+        orderNumber: order?.order_number ?? '',
         status: order?.status,
         paymentStatus: order?.payment_status,
         paymentMethod: order?.payment_method,
@@ -447,12 +447,12 @@ export const orderService = {
         updatedAt: order?.updated_at,
         customerId: order?.user_id,
         customer: {
-          id: order?.user_profiles?.id,
-          email: order?.user_profiles?.email,
-          firstName: order?.user_profiles?.first_name,
-          lastName: order?.user_profiles?.last_name,
-          phone: order?.user_profiles?.phone,
-          fullName: `${order?.user_profiles?.first_name || ''} ${order?.user_profiles?.last_name || ''}`.trim()
+          id: order?.user_profiles?.id ?? null,
+          email: order?.user_profiles?.email ?? '',
+          firstName: order?.user_profiles?.first_name ?? '',
+          lastName: order?.user_profiles?.last_name ?? '',
+          phone: order?.user_profiles?.phone ?? '',
+          fullName: `${order?.user_profiles?.first_name || ''} ${order?.user_profiles?.last_name || ''}`.trim() || 'Unknown'
         },
         items: order?.order_items?.map(item => ({
           id: item?.id,

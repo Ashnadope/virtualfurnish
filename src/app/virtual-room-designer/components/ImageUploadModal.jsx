@@ -202,20 +202,20 @@ export default function ImageUploadModal({ isOpen, onClose, onUpload }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-foreground/50 z-overlay flex items-center justify-center p-4">
-      <div className="bg-surface rounded-lg shadow-elevated max-w-2xl w-full max-h-[90vh] overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-          <h2 className="font-heading font-semibold text-lg text-foreground">Upload Room Photo</h2>
+    <div className="fixed inset-0 bg-foreground/50 z-overlay flex items-start sm:items-center justify-center p-3 sm:p-4 pt-20 sm:pt-4">
+      <div className="bg-surface rounded-lg shadow-elevated max-w-2xl w-full max-h-[calc(100vh-5rem)] sm:max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-border">
+          <h2 className="font-heading font-semibold text-base sm:text-lg text-foreground">Upload Room Photo</h2>
           <button
             onClick={handleClose}
             className="p-1 rounded-md hover:bg-muted transition-fast"
             aria-label="Close modal"
           >
-            <Icon name="XMarkIcon" size={24} variant="outline" />
+            <Icon name="XMarkIcon" size={20} variant="outline" />
           </button>
         </div>
 
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           {error && (
             <div className="mb-4 flex items-start gap-2 p-3 bg-error/10 border border-error/20 rounded-md">
               <Icon name="ExclamationCircleIcon" size={18} variant="solid" className="text-error mt-0.5" />
@@ -237,16 +237,16 @@ export default function ImageUploadModal({ isOpen, onClose, onUpload }) {
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
               className={`
-                border-2 border-dashed rounded-lg p-12 text-center transition-fast cursor-pointer
+                border-2 border-dashed rounded-lg p-6 sm:p-12 text-center transition-fast cursor-pointer
                 ${isDragging ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'}
               `}
               onClick={() => fileInputRef?.current?.click()}
             >
-              <Icon name="CloudArrowUpIcon" size={64} variant="outline" className="mx-auto mb-4 text-muted-foreground" />
-              <p className="font-body text-base text-foreground mb-2">
+              <Icon name="CloudArrowUpIcon" size={48} variant="outline" className="mx-auto mb-3 sm:mb-4 text-muted-foreground" />
+              <p className="font-body text-sm sm:text-base text-foreground mb-1.5 sm:mb-2">
                 Drag and drop your room photo here
               </p>
-              <p className="font-body text-sm text-muted-foreground mb-4">
+              <p className="font-body text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4">
                 or click to browse files
               </p>
               <p className="font-body text-xs text-muted-foreground">
@@ -270,7 +270,7 @@ export default function ImageUploadModal({ isOpen, onClose, onUpload }) {
                 />
               </div>
 
-              <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+              <div className="flex items-center justify-between p-3 sm:p-4 bg-muted rounded-lg">
                 <div className="flex items-center gap-3">
                   <Icon name="PhotoIcon" size={24} variant="solid" className="text-primary" />
                   <div>
@@ -304,7 +304,7 @@ export default function ImageUploadModal({ isOpen, onClose, onUpload }) {
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border">
+        <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3 px-4 sm:px-6 py-3 sm:py-4 border-t border-border">
           <button
             onClick={handleClose}
             disabled={uploading}

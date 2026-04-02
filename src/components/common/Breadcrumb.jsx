@@ -8,6 +8,8 @@ export default function Breadcrumb() {
   const pathname = usePathname();
 
   const pathSegments = pathname?.split('/')?.filter(Boolean);
+  const isAdminRoute = pathSegments?.[0]?.startsWith('admin-');
+  const dashboardPath = isAdminRoute ? '/admin-dashboard' : '/customer-dashboard';
 
   const breadcrumbMap = {
     'customer-dashboard': 'Dashboard',
@@ -22,7 +24,12 @@ export default function Breadcrumb() {
   };
 
   const generateBreadcrumbs = () => {
-    const breadcrumbs = [{ label: 'Home', path: '/' }];
+    // Dashboard is the root breadcrumb for authenticated navigation.
+    if (pathSegments?.[0] === 'customer-dashboard' || pathSegments?.[0] === 'admin-dashboard') {
+      return [{ label: 'Dashboard', path: dashboardPath }];
+    }
+
+    const breadcrumbs = [{ label: 'Dashboard', path: dashboardPath }];
 
     let currentPath = '';
     pathSegments?.forEach((segment) => {

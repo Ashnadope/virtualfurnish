@@ -8,7 +8,7 @@ export const supportService = {
   async getMyMessages() {
     const { data, error } = await supabase
       .from('support_messages')
-      .select('id, user_id, sender_id, sender_role, message, is_read_by_customer, is_read_by_admin, created_at')
+      .select('id, user_id, sender_id, sender_role, message, order_id, order_number, is_read_by_customer, is_read_by_admin, created_at')
       .order('created_at', { ascending: true });
 
     if (error) throw error;
@@ -32,7 +32,7 @@ export const supportService = {
         is_read_by_customer: true,
         is_read_by_admin: false,
       })
-      .select('id, user_id, sender_id, sender_role, message, is_read_by_customer, is_read_by_admin, created_at')
+      .select('id, user_id, sender_id, sender_role, message, order_id, order_number, is_read_by_customer, is_read_by_admin, created_at')
       .single();
 
     if (error) throw error;

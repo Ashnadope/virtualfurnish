@@ -8,26 +8,14 @@ import OrderFilters from './OrderFilters';
 import OrderStats from './OrderStats';
 import EmptyOrders from './EmptyOrders';
 
-export default function OrderHistoryInteractive({ initialOrders = [], initialStats = null }) {
+export default function OrderHistoryInteractive({ initialOrders = [], initialStats = null, initialSearch = '', initialFocusedOrderId = '' }) {
   const [orders, setOrders] = useState(initialOrders);
   const [filters, setFilters] = useState({
     status: 'all',
-    search: '',
+    search: initialSearch || '',
     startDate: null,
     endDate: null
   });
-
-  const stats = useMemo(() => {
-    if (initialStats) return initialStats;
-    if (!orders.length) return null;
-    return {
-      total: orders.length,
-      delivered: orders.filter(o => o.status?.toLowerCase() === 'delivered').length,
-      shipped: orders.filter(o => o.status?.toLowerCase() === 'shipped').length,
-      processing: orders.filter(o => o.status?.toLowerCase() === 'processing' || o.status?.toLowerCase() === 'pending').length,
-      totalSpent: orders.reduce((sum, o) => sum + parseFloat(o.totalAmount || 0), 0),
-    };
-  }, [orders, initialStats]);
 
   const filteredOrders = useMemo(() => {
     let filtered = [...orders];
@@ -54,6 +42,18 @@ export default function OrderHistoryInteractive({ initialOrders = [], initialSta
     return filtered;
   }, [orders, filters]);
 
+  const stats = useMemo(() => {
+    if (initialStats) return initialStats;
+    if (!orders.length) return null;
+    return {
+      total: orders.length,
+      delivered: orders.filter(o => o.status?.toLowerCase() === 'delivered').length,
+      shipped: orders.filter(o => o.status?.toLowerCase() === 'shipped').length,
+      processing: orders.filter(o => o.status?.toLowerCase() === 'processing' || o.status?.toLowerCase() === 'pending').length,
+      totalSpent: orders.reduce((sum, o) => sum + parseFloat(o.totalAmount || 0), 0),
+    };
+  }, [orders, initialStats]);
+
   const handleFilterChange = (newFilters) => {
     setFilters(prev => ({ ...prev, ...newFilters }));
   };
@@ -67,10 +67,6 @@ export default function OrderHistoryInteractive({ initialOrders = [], initialSta
     }
   };
 
-  const handleReorder = (order) => {
-    alert('Reorder functionality will add items to your cart');
-  };
-
   const handleContactSupport = (order) => {
     alert(`Contact support about order ${order?.orderNumber}`);
   };
@@ -82,10 +78,14 @@ export default function OrderHistoryInteractive({ initialOrders = [], initialSta
     if (!confirmed) return;
 
     try {
-      const { message } = await orderService.cancelOrder(order.id);
+      const { data, message } = await orderService.cancelOrder(order.id);
       // Optimistic local update — flip status immediately
       setOrders(prev =>
-        prev.map(o => o.id === order.id ? { ...o, status: 'cancelled' } : o)
+        prev.map(o => o.id === order.id ? {
+          ...o,
+          status: data?.status || 'cancelled',
+          paymentStatus: data?.payment_status || o.paymentStatus,
+        } : o)
       );
       alert(message || 'Order cancelled successfully.');
     } catch (err) {
@@ -110,8 +110,9 @@ export default function OrderHistoryInteractive({ initialOrders = [], initialSta
             <OrderCard
               key={order.id}
               order={order}
+              isHighlighted={Boolean(initialFocusedOrderId) && order.id === initialFocusedOrderId}
+              initialExpanded={Boolean(initialFocusedOrderId) && order.id === initialFocusedOrderId}
               onDownloadReceipt={handleDownloadReceipt}
-              onReorder={handleReorder}
               onContactSupport={handleContactSupport}
               onCancelOrder={handleCancelOrder}
             />

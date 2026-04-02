@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 
 async function fetchMessages() {
@@ -178,6 +179,17 @@ export default function SupportChat({ userId, initialMessages = [], initialOrder
                   }`}>
                     {msg.message}
                   </div>
+                  {!isCustomer && msg.order_id && msg.order_number && (
+                    <div className="mt-2 ml-1">
+                      <Link
+                        href={`/order-history?orderId=${encodeURIComponent(msg.order_id)}&order=${encodeURIComponent(msg.order_number)}`}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
+                      >
+                        <Icon name="ArrowTopRightOnSquareIcon" size={12} />
+                        Open order to cancel
+                      </Link>
+                    </div>
+                  )}
                   <p className={`text-[11px] text-muted-foreground mt-1 ${isCustomer ? 'text-right' : 'text-left ml-1'}`}>
                     {formatTime(msg.created_at)}
                     {msg.id?.startsWith('opt-') && <span className="ml-1 opacity-60">· Sending…</span>}

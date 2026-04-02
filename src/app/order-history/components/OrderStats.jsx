@@ -45,18 +45,18 @@ export default function OrderStats({ stats }) {
   };
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div className="mb-6 grid grid-cols-3 gap-2 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
       {statCards?.map((stat, index) => (
         <div
           key={index}
-          className={`${getColorClasses(stat?.color)} rounded-lg border p-4 transition-all hover:shadow-md`}
+          className={`${getColorClasses(stat?.color)} ${index === 3 ? 'col-span-3 sm:col-span-1' : 'col-span-1'} rounded-lg border p-2.5 transition-all hover:shadow-md sm:p-4`}
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium opacity-75">{stat?.label}</p>
-              <p className="text-2xl font-bold mt-1">{stat?.value}</p>
+              <p className="text-[11px] font-medium opacity-75 sm:text-sm">{stat?.label}</p>
+              <p className="mt-1 text-base font-bold sm:text-2xl">{stat?.value}</p>
             </div>
-            <div className="text-3xl opacity-50">{stat?.icon}</div>
+            <div className="text-xl opacity-50 sm:text-3xl">{stat?.icon}</div>
           </div>
         </div>
       ))}

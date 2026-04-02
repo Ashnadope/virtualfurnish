@@ -56,6 +56,55 @@ serve(async (req) => {
       )
     }
 
+    // Validate stock on the server before creating payment records.
+    for (const rawItem of (orderData.items || [])) {
+      const item = rawItem || {};
+      const requestedQty = Math.max(1, parseInt(item.quantity || 1));
+
+      if (item.variant_id) {
+        const { data: variant, error: variantError } = await supabaseClient
+          .from('product_variants')
+          .select('id, stock_quantity')
+          .eq('id', item.variant_id)
+          .single();
+
+        if (variantError || !variant) {
+          return new Response(
+            JSON.stringify({ error: 'One or more items are no longer available.' }),
+            { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
+        if ((parseInt(variant.stock_quantity ?? 0) || 0) < requestedQty) {
+          return new Response(
+            JSON.stringify({ error: 'Some items no longer have enough stock. Please update your cart.' }),
+            { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+      } else if (item.product_id || item.id) {
+        const productId = item.product_id || item.id;
+        const { data: product, error: productError } = await supabaseClient
+          .from('products')
+          .select('id, stock_quantity')
+          .eq('id', productId)
+          .single();
+
+        if (productError || !product) {
+          return new Response(
+            JSON.stringify({ error: 'One or more items are no longer available.' }),
+            { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
+        if ((parseInt(product.stock_quantity ?? 0) || 0) < requestedQty) {
+          return new Response(
+            JSON.stringify({ error: 'Some items no longer have enough stock. Please update your cart.' }),
+            { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+      }
+    }
+
     const totalAmount = Math.round(orderData.total * 100)
     const orderNumber = `VF-${new Date().getFullYear()}-${Math.random().toString().substr(2, 8)}`
 
