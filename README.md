@@ -32,7 +32,7 @@ A modern Next.js 14 application built with JavaScript and Tailwind CSS.
 3. Open [http://localhost:4028](http://localhost:4028) with your browser to see the result.
 
 ## 📁 Project Structure
-
+..
 ```
 nextjs-js-tailwind/
 ├── public/             # Static assets
