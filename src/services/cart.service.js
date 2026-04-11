@@ -112,13 +112,18 @@ export const cartService = {
       const supabase = createClient();
       const quantityToAdd = Math.max(1, parseInt(quantity || 1, 10));
       
-      const { data: { user }, error: authError } = await supabase?.auth?.getUser();
-      
-      if (authError || !user) {
+      // Run auth check and stock check in parallel to avoid sequential delays
+      const [authResult, stockResult] = await Promise.all([
+        supabase.auth.getSession(),
+        this.getAvailableStock({ variantId, productId }),
+      ]);
+
+      const user = authResult.data?.session?.user;
+      if (authResult.error || !user) {
         throw new Error('User not authenticated');
       }
 
-      const { stock, error: stockError } = await this.getAvailableStock({ variantId, productId });
+      const { stock, error: stockError } = stockResult;
       if (stockError) {
         throw new Error('Unable to verify stock. Please try again.');
       }

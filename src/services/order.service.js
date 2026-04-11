@@ -30,6 +30,7 @@ export const orderService = {
           shipping_address,
           billing_address,
           notes,
+          jt_waybill,
           created_at,
           updated_at,
           order_items (
@@ -284,15 +285,30 @@ export const orderService = {
     try {
       const supabase = createClient();
       
-      const { data, error } = await supabase?.from('orders')?.select('status, shipping_address, updated_at, notes')?.eq('id', orderId)?.eq('user_id', userId)?.single();
+      const { data, error } = await supabase?.from('orders')?.select('status, shipping_address, updated_at, notes, jt_waybill')?.eq('id', orderId)?.eq('user_id', userId)?.single();
 
       if (error) throw error;
+
+      // If we have a J&T waybill, fetch live tracking from the API
+      let jtTracking = null;
+      if (data?.jt_waybill) {
+        try {
+          const res = await fetch(`/api/shipping/track?orderId=${orderId}`);
+          if (res.ok) {
+            jtTracking = await res.json();
+          }
+        } catch (trackErr) {
+          console.error('Failed to fetch J&T tracking:', trackErr);
+        }
+      }
 
       return {
         status: data?.status,
         shippingAddress: data?.shipping_address,
         lastUpdate: data?.updated_at,
-        notes: data?.notes
+        notes: data?.notes,
+        waybill: data?.jt_waybill,
+        jtTracking,
       };
     } catch (error) {
       console.error('Error fetching tracking info:', error);

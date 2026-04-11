@@ -5,30 +5,41 @@ import PropTypes from 'prop-types';
 
 export default function OrderStatusCard({ order }) {
   const router = useRouter();
+
   const getStatusColor = (status) => {
-    switch (status) {
-      case 'Delivered':
-        return 'bg-success/10 text-success border-success/20';
-      case 'In Transit':
-        return 'bg-accent/10 text-accent border-accent/20';
-      case 'Processing':
-        return 'bg-warning/10 text-warning border-warning/20';
-      default:
-        return 'bg-muted text-muted-foreground border-border';
-    }
+    const colors = {
+      pending: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+      processing: 'bg-blue-100 text-blue-800 border-blue-300',
+      packing: 'bg-indigo-100 text-indigo-800 border-indigo-300',
+      shipped: 'bg-purple-100 text-purple-800 border-purple-300',
+      delivered: 'bg-green-100 text-green-800 border-green-300',
+      cancelled: 'bg-red-100 text-red-800 border-red-300',
+    };
+    return colors[status?.toLowerCase()] || 'bg-gray-100 text-gray-800 border-gray-300';
   };
 
   const getStatusIcon = (status) => {
-    switch (status) {
-      case 'Delivered':
-        return 'CheckCircleIcon';
-      case 'In Transit':
-        return 'TruckIcon';
-      case 'Processing':
-        return 'ClockIcon';
-      default:
-        return 'InformationCircleIcon';
-    }
+    const icons = {
+      pending: 'ClockIcon',
+      processing: 'CogIcon',
+      packing: 'ArchiveBoxIcon',
+      shipped: 'TruckIcon',
+      delivered: 'CheckCircleIcon',
+      cancelled: 'XCircleIcon',
+    };
+    return icons[status?.toLowerCase()] || 'InformationCircleIcon';
+  };
+
+  const getStatusLabel = (status) => {
+    const labels = {
+      pending: 'Pending',
+      processing: 'Processing',
+      packing: 'Packing',
+      shipped: 'Shipped',
+      delivered: 'Delivered',
+      cancelled: 'Cancelled',
+    };
+    return labels[status?.toLowerCase()] || status || 'Unknown';
   };
 
   return (
@@ -40,7 +51,7 @@ export default function OrderStatusCard({ order }) {
         </div>
         <div className={`px-3 py-1 rounded-full border ${getStatusColor(order?.status)} flex items-center gap-1.5`}>
           <Icon name={getStatusIcon(order?.status)} size={14} variant="solid" />
-          <span className="font-body text-xs font-medium">{order?.status}</span>
+          <span className="font-body text-xs font-medium">{getStatusLabel(order?.status)}</span>
         </div>
       </div>
       <div className="space-y-2 mb-3">
@@ -76,7 +87,7 @@ OrderStatusCard.propTypes = {
   order: PropTypes?.shape({
     orderNumber: PropTypes?.string?.isRequired,
     productName: PropTypes?.string?.isRequired,
-    status: PropTypes?.oneOf(['Delivered', 'In Transit', 'Processing'])?.isRequired,
+    status: PropTypes?.string?.isRequired,
     orderDate: PropTypes?.string?.isRequired,
     estimatedDelivery: PropTypes?.string,
     totalAmount: PropTypes?.number?.isRequired,

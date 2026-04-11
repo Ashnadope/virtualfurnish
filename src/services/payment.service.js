@@ -119,6 +119,88 @@ export const paymentService = {
   },
 
   /**
+   * Initiate QRPH payment via PayMongo (Supabase Edge Function)
+   * @param {Object} orderData - Order details
+   * @param {Object} customerInfo - Customer information
+   * @returns {{ orderId, orderNumber, checkoutUrl, paymongoPaymentIntentId, status }}
+   */
+  async processQRPHPayment(orderData, customerInfo) {
+    const supabase = createClient()
+
+    console.log('Invoking process-qrph-payment function with:', {
+      orderData,
+      customerInfo,
+    })
+
+    try {
+      // Get the current session token for authorization
+      const { data: { session } } = await supabase.auth.getSession()
+      const accessToken = session?.access_token
+      if (!accessToken) throw new Error('Not authenticated')
+
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+      // Use direct fetch instead of supabase.functions.invoke to avoid client-side parsing issues
+      const response = await fetch(`${supabaseUrl}/functions/v1/process-qrph-payment`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+          'apikey': anonKey,
+        },
+        body: JSON.stringify({ orderData, customerInfo }),
+      })
+
+      console.log('QRPH fetch response status:', response.status)
+      const data = await response.json()
+      console.log('QRPH fetch response data:', data)
+
+      if (!response.ok) {
+        throw new Error(data?.error || `Server error ${response.status}`)
+      }
+
+      return data
+    } catch (err) {
+      console.error('QRPH payment invocation failed:', err)
+      throw err
+    }
+  },
+
+  /**
+   * Poll QRPH payment status
+   * @param {string} orderId - The order UUID
+   * @returns {{ status, orderId, orderNumber }}
+   */
+  async checkQRPHStatus(orderId) {
+    const supabase = createClient()
+
+    const { data: { session } } = await supabase.auth.getSession()
+    const accessToken = session?.access_token
+    if (!accessToken) throw new Error('Not authenticated')
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+    const response = await fetch(`${supabaseUrl}/functions/v1/check-qrph-status`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+        'apikey': anonKey,
+      },
+      body: JSON.stringify({ orderId }),
+    })
+
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data?.error || 'Failed to check QRPH payment status')
+    }
+
+    return data
+  },
+
+  /**
    * Format amount for display
    * @param {number} amount - Amount in cents
    * @param {string} currency - Currency code (default: PHP)

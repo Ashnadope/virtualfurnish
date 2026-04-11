@@ -17,6 +17,7 @@ const CanvasArea = forwardRef(function CanvasArea({
   onFurnitureScale,
   onFurnitureDelete,
   onAddFurniture,
+  onCanvasDeselect,
   showAISuggestions,
   aiSuggestionType,
   colorPalette
@@ -44,6 +45,7 @@ const CanvasArea = forwardRef(function CanvasArea({
   const imageContainerRef = useRef(null);
   const longPressTimerRef = useRef(null);
   const touchStartPosRef = useRef(null);
+  const didDragRef = useRef(false);
 
   // Expose capture function to parent via ref
   useImperativeHandle(ref, () => ({
@@ -56,12 +58,26 @@ const CanvasArea = forwardRef(function CanvasArea({
         // Hide selection UI before capture so the exported image is clean
         flushSync(() => setIsCapturing(true));
 
-        const canvas = await html2canvas(imageContainerRef.current, {
+        const container = imageContainerRef.current;
+        const containerRect = container.getBoundingClientRect();
+
+        // Expand capture area to include furniture that overflows the container bounds
+        let extraRight = 0;
+        let extraBottom = 0;
+        container.querySelectorAll('[data-furniture-id]').forEach(el => {
+          const r = el.getBoundingClientRect();
+          extraRight = Math.max(extraRight, r.right - containerRect.right);
+          extraBottom = Math.max(extraBottom, r.bottom - containerRect.bottom);
+        });
+
+        const canvas = await html2canvas(container, {
           backgroundColor: null,
           scale: 2,
           useCORS: true,
           allowTaint: true,
-          logging: false
+          logging: false,
+          width: containerRect.width + Math.max(0, extraRight),
+          height: containerRect.height + Math.max(0, extraBottom),
         });
 
         return new Promise((resolve, reject) => {
@@ -146,7 +162,8 @@ const CanvasArea = forwardRef(function CanvasArea({
     } else {
       setIsDraggingFurniture(true);
       setDraggedFurnitureId(furnitureId);
-      onFurnitureSelect(furnitureId);
+      didDragRef.current = false;
+      onFurnitureSelect(furnitureId, false);
       
       const furniture = placedFurniture?.find(f => f?.id === furnitureId);
       if (furniture && imageContainerRef?.current) {
@@ -161,6 +178,7 @@ const CanvasArea = forwardRef(function CanvasArea({
   const handleFurnitureMouseMove = (e) => {
     if (isDraggingFurniture && draggedFurnitureId && furnitureDragStart && imageContainerRef?.current) {
       e?.preventDefault();
+      didDragRef.current = true;
       const rect = imageContainerRef?.current?.getBoundingClientRect();
       const newX = ((e?.clientX - rect?.left - furnitureDragStart?.offsetX) / rect?.width) * 100;
       const newY = ((e?.clientY - rect?.top - furnitureDragStart?.offsetY) / rect?.height) * 100;
@@ -223,9 +241,9 @@ const CanvasArea = forwardRef(function CanvasArea({
   };
 
   const handleFurnitureClick = (e, furnitureId) => {
-    if (!isDraggingFurniture && !rotationMode) {
+    if (!rotationMode && !didDragRef.current) {
       e?.stopPropagation();
-      onFurnitureSelect(furnitureId);
+      onFurnitureSelect(furnitureId, true);
     }
   };
 
@@ -285,7 +303,7 @@ const CanvasArea = forwardRef(function CanvasArea({
       
       const currentDistance = Math.hypot(touch2?.clientX - touch1?.clientX, touch2?.clientY - touch1?.clientY);
       const scaleRatio = currentDistance / rotationStart?.initialDistance;
-      const newScale = Math.max(0.5, Math.min(2, rotationStart?.initialScale * scaleRatio));
+      const newScale = Math.max(0.5, Math.min(3, rotationStart?.initialScale * scaleRatio));
       
       const furniture = placedFurniture?.find(f => f?.id === draggedFurnitureId);
       if (furniture) {
@@ -427,6 +445,12 @@ const CanvasArea = forwardRef(function CanvasArea({
         ref={canvasRef}
         className="flex-1 relative overflow-hidden cursor-move"
         onMouseDown={handleCanvasMouseDown}
+        onClick={(e) => {
+          // If click target is the canvas background (not a furniture item), deselect
+          if (!e.target.closest('[data-furniture-id]')) {
+            onCanvasDeselect?.();
+          }
+        }}
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -656,6 +680,7 @@ CanvasArea.propTypes = {
   onFurnitureScale: PropTypes?.func?.isRequired,
   onFurnitureDelete: PropTypes?.func?.isRequired,
   onAddFurniture: PropTypes?.func?.isRequired,
+  onCanvasDeselect: PropTypes?.func,
   showAISuggestions: PropTypes?.bool?.isRequired,
   aiSuggestionType: PropTypes?.string,
   colorPalette: PropTypes?.object

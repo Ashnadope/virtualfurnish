@@ -1,13 +1,50 @@
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import AppImage from '@/components/ui/AppImage';
+import { createClient } from '@supabase/supabase-js';
 
 export const metadata = {
   title: 'VirtualFurnish - Transform Your Space with Virtual Room Design',
   description: 'Design your dream room with VirtualFurnish. AI-powered furniture suggestions, drag-and-drop room design, and extensive furniture catalog from Brosas Furniture Store.'
 };
 
-export default function LandingPage() {
+async function getLandingStats() {
+  try {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+    const [
+      { count: designCount },
+      { count: customerCount },
+      { count: productCount },
+    ] = await Promise.all([
+      supabase.from('room_designs').select('id', { count: 'exact', head: true }),
+      supabase.from('user_profiles').select('id', { count: 'exact', head: true }).eq('role', 'customer'),
+      supabase.from('products').select('id', { count: 'exact', head: true }),
+    ]);
+    return {
+      roomDesigns: designCount ?? 0,
+      happyCustomers: customerCount ?? 0,
+      furnitureItems: productCount ?? 0,
+    };
+  } catch {
+    return { roomDesigns: 0, happyCustomers: 0, furnitureItems: 0 };
+  }
+}
+
+// Force dynamic rendering so stats are always fresh
+export const dynamic = 'force-dynamic';
+
+export default async function LandingPage() {
+  const liveStats = await getLandingStats();
+
+  const stats = [
+    { value: liveStats.roomDesigns.toLocaleString(), label: 'Rooms Designed' },
+    { value: liveStats.happyCustomers.toLocaleString(), label: 'Happy Customers' },
+    { value: liveStats.furnitureItems.toLocaleString(), label: 'Furniture Items' },
+    { value: '—/—', label: 'Average Rating' },
+  ];
 
   const features = [
     {
@@ -51,13 +88,6 @@ export default function LandingPage() {
       comment: 'So easy to use! I designed my entire apartment in just one afternoon.',
       rating: 5
     }
-  ];
-
-  const stats = [
-    { value: '50,000+', label: 'Rooms Designed' },
-    { value: '15,000+', label: 'Happy Customers' },
-    { value: '5,000+', label: 'Furniture Items' },
-    { value: '4.9/5', label: 'Average Rating' }
   ];
 
   return (
@@ -115,7 +145,7 @@ export default function LandingPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Icon name="UserGroupIcon" size={20} variant="solid" className="text-accent" />
-                  <span>15,000+ Users</span>
+                  <span>{stats[1].value} Users</span>
                 </div>
               </div>
             </div>
@@ -124,7 +154,7 @@ export default function LandingPage() {
             <div className="relative">
               <div className="relative rounded-2xl overflow-hidden shadow-2xl border-4 border-white/20">
                 <AppImage
-                  src="https://images.unsplash.com/photo-1721521912089-d1f16e3a9d96"
+                  src="https://zxpmmrjdxvqpizgmhzsp.supabase.co/storage/v1/object/public/furniture-images/brosas_furnitures.jpg"
                   alt="Modern living room with stylish furniture arrangement showcasing VirtualFurnish design capabilities"
                   width={800}
                   height={600}
@@ -139,7 +169,7 @@ export default function LandingPage() {
                     <Icon name="ChartBarIcon" size={24} variant="solid" className="text-accent" />
                   </div>
                   <div>
-                    <div className="font-heading text-2xl font-bold text-foreground">50,000+</div>
+                    <div className="font-heading text-2xl font-bold text-foreground">{stats[0].value}</div>
                     <div className="font-body text-sm text-muted-foreground">Rooms Designed</div>
                   </div>
                 </div>

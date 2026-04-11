@@ -106,7 +106,6 @@ serve(async (req) => {
     }
 
     const totalAmount = Math.round(orderData.total * 100)
-    const orderNumber = `VF-${new Date().getFullYear()}-${Math.random().toString().substr(2, 8)}`
 
     let stripeCustomer
     const customerData = {
@@ -114,12 +113,12 @@ serve(async (req) => {
       email: customerInfo.email,
       phone: customerInfo.phone,
       address: {
-        line1: customerInfo.billing.address_line_1,
-        line2: customerInfo.billing.address_line_2,
-        city: customerInfo.billing.city,
-        state: customerInfo.billing.state,
-        postal_code: customerInfo.billing.postal_code,
-        country: customerInfo.billing.country || 'PH'
+        line1: customerInfo.billing?.address_line_1,
+        line2: customerInfo.billing?.address_line_2,
+        city: customerInfo.billing?.city,
+        state: customerInfo.billing?.state,
+        postal_code: customerInfo.billing?.postal_code,
+        country: customerInfo.billing?.country || 'PH'
       },
       metadata: {
         supabase_user_id: user.id
@@ -137,36 +136,92 @@ serve(async (req) => {
         .eq('id', user.id)
     }
 
-    // Create the order first so we can include `order_id` in the PaymentIntent metadata
-    const { data: order, error: orderError } = await supabaseClient
-      .from('orders')
-      .insert({
-        user_id: user.id,
-        order_number: orderNumber,
-        payment_method: paymentMethod,
-        subtotal: orderData.subtotal,
-        tax_amount: orderData.tax || 0,
-        shipping_amount: orderData.shipping_cost || 0,
-        discount_amount: orderData.discount || 0,
-        total_amount: orderData.total,
-        currency: orderData.currency || 'PHP',
-        shipping_address: orderData.shipping || customerInfo.billing,
-        billing_address: customerInfo.billing,
-        status: 'pending',
-        payment_status: 'pending'
-      })
-      .select()
-      .single()
+    let order: any
+    let orderNumber: string
 
-    if (orderError) {
-      console.error('Order creation error:', orderError)
-      return new Response(
-        JSON.stringify({ error: 'Failed to create order' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    // If an existing orderId is provided (e.g. "Continue to Payment"), reuse it
+    if (orderData.orderId) {
+      const { data: existing, error: fetchErr } = await supabaseClient
+        .from('orders')
+        .select('*')
+        .eq('id', orderData.orderId)
+        .eq('user_id', user.id)
+        .single()
+
+      if (fetchErr || !existing) {
+        return new Response(
+          JSON.stringify({ error: 'Order not found' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      order = existing
+      orderNumber = existing.order_number
+
+      // Update payment method on the existing order
+      await supabaseClient
+        .from('orders')
+        .update({ payment_method: paymentMethod })
+        .eq('id', order.id)
+
+      // Clean up any previous failed payment transactions for this order
+      await supabaseClient
+        .from('payment_transactions')
+        .delete()
+        .eq('order_id', order.id)
+        .in('status', ['pending', 'failed'])
+    } else {
+      // Create a brand-new order
+      orderNumber = `VF-${new Date().getFullYear()}-${Math.random().toString().substr(2, 8)}`
+
+      const { data: newOrder, error: orderError } = await supabaseClient
+        .from('orders')
+        .insert({
+          user_id: user.id,
+          order_number: orderNumber,
+          payment_method: paymentMethod,
+          subtotal: orderData.subtotal,
+          tax_amount: orderData.tax || 0,
+          shipping_amount: orderData.shipping_cost || 0,
+          discount_amount: orderData.discount || 0,
+          total_amount: orderData.total,
+          currency: orderData.currency || 'PHP',
+          shipping_address: orderData.shipping || customerInfo.billing,
+          billing_address: customerInfo.billing,
+          status: 'pending',
+          payment_status: 'pending'
+        })
+        .select()
+        .single()
+
+      if (orderError) {
+        console.error('Order creation error:', orderError)
+        return new Response(
+          JSON.stringify({ error: 'Failed to create order' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      order = newOrder
+
+      // Insert order items only for new orders
+      const orderItems = orderData.items.map((item: any) => ({
+        order_id: order.id,
+        product_id: item.product_id || item.id || null,
+        variant_id: item.variant_id || null,
+        variant_name: item.variant_name || '',
+        sku: item.sku || '',
+        name: item.name,
+        brand: item.brand || '',
+        price: parseFloat(item.price) || 0,
+        quantity: parseInt(item.quantity) || 1,
+        total: (parseFloat(item.price) || 0) * (parseInt(item.quantity) || 1)
+      }))
+
+      await supabaseClient.from('order_items').insert(orderItems)
     }
 
-    // Create PaymentIntent with order metadata now that we have an order id
+    // Create PaymentIntent with order metadata
     const paymentIntent = await stripe.paymentIntents.create({
       amount: totalAmount,
       currency: orderData.currency || 'php',
@@ -190,21 +245,6 @@ serve(async (req) => {
     } catch (e) {
       console.error('Failed updating order with payment_intent_id:', e)
     }
-
-    const orderItems = orderData.items.map((item: any) => ({
-      order_id: order.id,
-      product_id: item.product_id || item.id || null,
-      variant_id: item.variant_id || null,
-      variant_name: item.variant_name || '',
-      sku: item.sku || '',
-      name: item.name,
-      brand: item.brand || '',
-      price: parseFloat(item.price) || 0,
-      quantity: parseInt(item.quantity) || 1,
-      total: (parseFloat(item.price) || 0) * (parseInt(item.quantity) || 1)
-    }))
-
-    await supabaseClient.from('order_items').insert(orderItems)
 
     await supabaseClient.from('payment_transactions').insert({
       order_id: order.id,

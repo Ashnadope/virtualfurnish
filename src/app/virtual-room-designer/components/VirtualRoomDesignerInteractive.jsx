@@ -351,6 +351,7 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData, i
     const newPlacedFurniture = [...placedFurniture, newFurniture];
     setPlacedFurniture(newPlacedFurniture);
     setSelectedFurnitureId(newFurniture?.id);
+    setShowPropertiesPanel(false); // don't auto-open properties on drop
     setFurnitureCatalogOpen(false); // close catalog when furniture is added
     saveToHistory({ image: uploadedImage, furniture: newPlacedFurniture });
   };
@@ -381,7 +382,7 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData, i
 
   const handleFurnitureScale = (furnitureId, scaleChange) => {
     const newPlacedFurniture = placedFurniture?.map(f =>
-      f?.id === furnitureId ? { ...f, scale: Math.max(0.5, Math.min(2, f?.scale + scaleChange)) } : f
+      f?.id === furnitureId ? { ...f, scale: Math.max(0.5, Math.min(3, f?.scale + scaleChange)) } : f
     );
     setPlacedFurniture(newPlacedFurniture);
     saveToHistory({ image: uploadedImage, furniture: newPlacedFurniture });
@@ -1019,6 +1020,10 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData, i
                   onFurnitureScale={handleFurnitureScale}
                   onFurnitureDelete={handleFurnitureDelete}
                   onAddFurniture={handleAddFurniture}
+                  onCanvasDeselect={() => {
+                    setSelectedFurnitureId(null);
+                    setShowPropertiesPanel(false);
+                  }}
                   showAISuggestions={showAISuggestions}
                   aiSuggestionType={aiSuggestionType}
                   colorPalette={aiAnalysis?.colorPaletteSuggestions || null}

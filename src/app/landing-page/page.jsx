@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,6 +10,31 @@ import AppImage from '@/components/ui/AppImage';
 export default function LandingPage() {
   const router = useRouter();
   const { user, userRole } = useAuth();
+  const [stats, setStats] = useState([
+    { value: '—', label: 'Rooms Designed' },
+    { value: '—', label: 'Happy Customers' },
+    { value: '—', label: 'Furniture Items' },
+    { value: '—/—', label: 'Average Rating' },
+  ]);
+
+  useEffect(() => {
+    async function loadStats() {
+      try {
+        const res = await fetch('/api/landing-stats');
+        if (!res.ok) return;
+        const data = await res.json();
+        setStats([
+          { value: data.roomDesigns.toLocaleString(), label: 'Rooms Designed' },
+          { value: data.happyCustomers.toLocaleString(), label: 'Happy Customers' },
+          { value: data.furnitureItems.toLocaleString(), label: 'Furniture Items' },
+          { value: '—/—', label: 'Average Rating' },
+        ]);
+      } catch {
+        // Keep fallback values
+      }
+    }
+    loadStats();
+  }, []);
 
   const handleGetStarted = () => {
     if (!user) {
@@ -62,13 +88,6 @@ export default function LandingPage() {
     comment: 'So easy to use! I designed my entire apartment in just one afternoon.',
     rating: 5
   }];
-
-
-  const stats = [
-  { value: '50,000+', label: 'Rooms Designed' },
-  { value: '15,000+', label: 'Happy Customers' },
-  { value: '5,000+', label: 'Furniture Items' },
-  { value: '4.9/5', label: 'Average Rating' }];
 
 
   return (
@@ -127,7 +146,7 @@ export default function LandingPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Icon name="UserGroupIcon" size={20} variant="solid" className="text-accent" />
-                  <span>15,000+ Users</span>
+                  <span>{stats[1].value} Users</span>
                 </div>
               </div>
             </div>
@@ -136,7 +155,7 @@ export default function LandingPage() {
             <div className="relative">
               <div className="relative rounded-2xl overflow-hidden shadow-2xl border-4 border-white/20">
                 <AppImage
-                  src="https://images.unsplash.com/photo-1721521912089-d1f16e3a9d96"
+                  src="https://zxpmmrjdxvqpizgmhzsp.supabase.co/storage/v1/object/public/furniture-images/brosas_furnitures.jpg"
                   alt="Modern living room with stylish furniture arrangement showcasing VirtualFurnish design capabilities"
                   width={800}
                   height={600}
@@ -151,7 +170,7 @@ export default function LandingPage() {
                     <Icon name="ChartBarIcon" size={24} variant="solid" className="text-accent" />
                   </div>
                   <div>
-                    <div className="font-heading text-2xl font-bold text-foreground">50,000+</div>
+                    <div className="font-heading text-2xl font-bold text-foreground">{stats[0].value}</div>
                     <div className="font-body text-sm text-muted-foreground">Rooms Designed</div>
                   </div>
                 </div>

@@ -18,6 +18,8 @@ export default function OrderCard({
 
   const CANCELLABLE_STATUSES = ['pending', 'processing', 'packing'];
   const canCancel = CANCELLABLE_STATUSES.includes(order?.status?.toLowerCase());
+  const canContinuePayment = order?.status?.toLowerCase() === 'pending' && 
+    ['pending', 'failed'].includes(order?.paymentStatus?.toLowerCase());
 
   const isPaymentConfirmed = ['paid', 'completed', 'succeeded'].includes(order?.paymentStatus?.toLowerCase());
 
@@ -130,6 +132,14 @@ export default function OrderCard({
           >
             Contact Support
           </Link>
+          {canContinuePayment && (
+            <Link
+              href={`/checkout/pay?orderId=${order?.id}`}
+              className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors sm:px-4 sm:py-2 sm:text-sm"
+            >
+              Continue to Payment
+            </Link>
+          )}
           {canCancel && (
             <button
               onClick={handleCancel}

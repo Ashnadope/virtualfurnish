@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import StripePaymentForm from '@/components/payment/StripePaymentForm';
 import GCashPaymentForm from '@/components/payment/GCashPaymentForm';
+import QRPHPaymentForm from '@/components/payment/QRPHPaymentForm';
 import { paymentService } from '@/services/payment.service';
 import Header from '@/components/common/Header';
 import Sidebar from '@/components/common/Sidebar';
@@ -17,7 +18,8 @@ export default function CheckoutPage() {
   const [customerInfo, setCustomerInfo] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [paymentMethod, setPaymentMethod] = useState('card') // 'card' or 'gcash'
+  const [cardError, setCardError] = useState('')
+  const [paymentMethod, setPaymentMethod] = useState('card') // 'card', 'gcash', or 'qrph'
   const [cartItems, setCartItems] = useState([])
   const [currentStep, setCurrentStep] = useState(1) // 1: Cart Review, 2: Shipping, 3: Payment
   const [shippingAddress, setShippingAddress] = useState({
@@ -33,6 +35,9 @@ export default function CheckoutPage() {
   const [addressErrors, setAddressErrors] = useState({})
   const [addressId, setAddressId] = useState(null)
   const [isSavingAddress, setIsSavingAddress] = useState(false)
+  const [shippingCost, setShippingCost] = useState(0)
+  const [shippingLoading, setShippingLoading] = useState(false)
+  const [shippingDetails, setShippingDetails] = useState(null)
   const paymentInitializedRef = useRef(false) // use ref so changes don't re-trigger the effect
 
   useEffect(() => {
@@ -94,8 +99,9 @@ export default function CheckoutPage() {
 
         const subtotal = items?.reduce((sum, item) => sum + (item?.price * item?.quantity), 0)
         const tax = subtotal * 0.12 // 12% VAT for Philippines
-        const shippingCost = 0
-        const total = subtotal + tax + shippingCost
+        // Shipping cost starts at 0, will be calculated when address is confirmed
+        const initialShippingCost = 0
+        const total = subtotal + tax + initialShippingCost
 
         const billingAddress = profile?.addresses?.find(a => a?.type === 'billing' && a?.is_default) 
           || profile?.addresses?.find(a => a?.type === 'billing')
@@ -138,13 +144,21 @@ export default function CheckoutPage() {
           items,
           subtotal,
           tax,
-          shipping_cost: shippingCost,
+          shipping_cost: initialShippingCost,
           total,
           currency: 'PHP'
         }
 
         setCustomerInfo(customerData)
         setOrderData({ ...orderPayload, amount: Math.round(total * 100) })
+
+        // Calculate shipping if address already exists
+        if (billingAddress?.postal_code) {
+          // Defer to after state is set
+          setTimeout(() => {
+            calculateShipping(billingAddress.postal_code)
+          }, 0)
+        }
 
       } catch (err) {
         console.error('Checkout initialization error:', err)
@@ -205,38 +219,43 @@ export default function CheckoutPage() {
           return
         }
 
+        // For GCash / QRPH, just update customer info — no server call needed here
+        setOrderData(prev => ({
+          ...prev,
+          shipping: shippingAddress
+        }))
+        setCustomerInfo(updatedCustomerInfo)
+        paymentInitializedRef.current = true
+
         if (paymentMethod === 'card') {
-          console.log('Creating payment intent...')
-          const paymentData = await paymentService?.createPaymentIntent(
-            orderData, 
-            updatedCustomerInfo, 
-            'card'
-          )
+          try {
+            console.log('Creating payment intent...')
+            const paymentData = await paymentService?.createPaymentIntent(
+              orderData, 
+              updatedCustomerInfo, 
+              'card'
+            )
 
-          console.log('Payment intent created:', paymentData)
+            console.log('Payment intent created:', paymentData)
 
-          if (paymentData?.clientSecret) {
-            setClientSecret(paymentData?.clientSecret)
-            setOrderData(prev => ({
-              ...prev,
-              orderId: paymentData?.orderId,
-              orderNumber: paymentData?.orderNumber
-            }))
-            setCustomerInfo(updatedCustomerInfo)
-            paymentInitializedRef.current = true
-            console.log('Payment initialization successful')
-          } else {
-            console.error('No client secret in payment data:', paymentData)
-            setError('Failed to initialize payment - no client secret returned')
+            if (paymentData?.clientSecret) {
+              setClientSecret(paymentData?.clientSecret)
+              setOrderData(prev => ({
+                ...prev,
+                orderId: paymentData?.orderId,
+                orderNumber: paymentData?.orderNumber
+              }))
+              console.log('Payment initialization successful')
+            } else {
+              console.error('No client secret in payment data:', paymentData)
+              // Don't block entire page — user can still switch to QRPH/GCash
+              setCardError('Failed to initialize card payment - no client secret returned')
+            }
+          } catch (cardErr) {
+            console.error('Card payment init error:', cardErr)
+            setCardError(`Card payment setup failed: ${cardErr?.message || 'Unknown error'}`)
+            // Don't set main error — allow user to switch to QRPH/GCash
           }
-        } else {
-          // For GCash, just update customer info — no server call needed here
-          setOrderData(prev => ({
-            ...prev,
-            shipping: shippingAddress
-          }))
-          setCustomerInfo(updatedCustomerInfo)
-          paymentInitializedRef.current = true
         }
       } catch (err) {
         console.error('Payment initialization error:', err)
@@ -324,11 +343,59 @@ export default function CheckoutPage() {
       const { id } = await res.json()
       if (id && !addressId) setAddressId(id)
       setIsEditingAddress(false)
+
+      // Calculate shipping cost after saving address
+      await calculateShipping(shippingAddress.postal_code)
     } catch (err) {
       console.error('Failed to save address:', err)
       setAddressErrors({ address_line_1: err.message ?? 'Failed to save address. Please try again.' })
     } finally {
       setIsSavingAddress(false)
+    }
+  }
+
+  // Calculate shipping cost from J&T rate card
+  const calculateShipping = async (postalCode) => {
+    if (!postalCode || !/^\d{4}$/.test(postalCode)) return
+
+    setShippingLoading(true)
+    try {
+      const items = cartItems?.map(item => ({
+        weight: item?.products?.weight || item?.product_variants?.weight || '5',
+        quantity: item?.quantity || 1,
+      }))
+
+      const res = await fetch('/api/shipping/calculate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          destinationPostalCode: postalCode,
+          items,
+        }),
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        setShippingCost(data.shippingCost || 0)
+        setShippingDetails(data)
+
+        // Recalculate order totals with shipping
+        setOrderData(prev => {
+          if (!prev) return prev
+          const newTotal = prev.subtotal + prev.tax + data.shippingCost
+          return {
+            ...prev,
+            shipping_cost: data.shippingCost,
+            total: newTotal,
+            amount: Math.round(newTotal * 100),
+          }
+        })
+      }
+    } catch (err) {
+      console.error('Shipping calc error:', err)
+      // Don't block checkout — fall back to 0
+    } finally {
+      setShippingLoading(false)
     }
   }
 
@@ -518,8 +585,23 @@ export default function CheckoutPage() {
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Shipping</span>
-                    <span className="text-green-600 font-medium">FREE</span>
+                    {shippingLoading ? (
+                      <span className="text-gray-400 text-xs">Calculating...</span>
+                    ) : shippingCost > 0 ? (
+                      <span className="text-gray-900 font-medium">
+                        ₱{shippingCost?.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400 text-xs italic">
+                        {shippingAddress?.postal_code ? 'FREE' : 'Enter address to calculate'}
+                      </span>
+                    )}
                   </div>
+                  {shippingDetails && shippingCost > 0 && (
+                    <div className="text-xs text-gray-400 text-right">
+                      J&T Express {shippingDetails.tierLabel} · {shippingDetails.weightKg} kg
+                    </div>
+                  )}
                   <div className="flex justify-between text-lg font-bold border-t border-gray-200 pt-2">
                     <span>Total</span>
                     <span className="text-blue-600">
@@ -810,7 +892,7 @@ export default function CheckoutPage() {
                     
                     <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:gap-4">
                       <button
-                        onClick={() => setPaymentMethod('card')}
+                        onClick={() => { setPaymentMethod('card'); setCardError(''); }}
                         className={`min-w-0 flex-1 rounded-lg border-2 px-4 py-4 transition-all sm:px-6 ${
                           paymentMethod === 'card' ?'border-blue-600 bg-blue-50 ring-2 ring-blue-100' :'border-gray-200 hover:border-gray-300'
                         }`}
@@ -826,7 +908,7 @@ export default function CheckoutPage() {
                       </button>
 
                       <button
-                        onClick={() => setPaymentMethod('gcash')}
+                        onClick={() => { setPaymentMethod('gcash'); setCardError(''); }}
                         className={`min-w-0 flex-1 rounded-lg border-2 px-4 py-4 transition-all sm:px-6 ${
                           paymentMethod === 'gcash' ?'border-blue-600 bg-blue-50 ring-2 ring-blue-100' :'border-gray-200 hover:border-gray-300'
                         }`}
@@ -840,9 +922,33 @@ export default function CheckoutPage() {
                           </span>
                         </div>
                       </button>
+
+                      <button
+                        onClick={() => { setPaymentMethod('qrph'); setCardError(''); }}
+                        className={`min-w-0 flex-1 rounded-lg border-2 px-4 py-4 transition-all sm:px-6 ${
+                          paymentMethod === 'qrph' ?'border-indigo-600 bg-indigo-50 ring-2 ring-indigo-100' :'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-center gap-2 sm:gap-3">
+                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                              d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" />
+                          </svg>
+                          <span className={`text-sm font-semibold sm:text-base ${paymentMethod === 'qrph' ? 'text-indigo-600' : 'text-gray-700'}`}>
+                            QRPH
+                          </span>
+                        </div>
+                      </button>
                     </div>
 
                     {/* Payment Form */}
+                    {paymentMethod === 'card' && cardError && (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                        <p className="text-sm text-red-700">{cardError}</p>
+                        <p className="text-xs text-red-500 mt-1">Try switching to QRPH or GCash payment instead.</p>
+                      </div>
+                    )}
+
                     {paymentMethod === 'card' && clientSecret && orderData && customerInfo && (
                       <StripePaymentForm
                         clientSecret={clientSecret}
@@ -864,6 +970,17 @@ export default function CheckoutPage() {
                         defaultPhone={shippingAddress?.phone}
                         onSuccess={handlePaymentSuccess}
                         onError={(error) => console.error('GCash payment error:', error)}
+                      />
+                    )}
+
+                    {paymentMethod === 'qrph' && orderData && customerInfo && (
+                      <QRPHPaymentForm
+                        amount={orderData?.amount}
+                        currency="PHP"
+                        orderData={orderData}
+                        customerInfo={customerInfo}
+                        onSuccess={handlePaymentSuccess}
+                        onError={(error) => console.error('QRPH payment error:', error)}
                       />
                     )}
                   </div>

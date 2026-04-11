@@ -66,20 +66,13 @@ export default function ProductDetailInteractive({ product }) {
     }
 
     setIsAddingToCart(true);
-    let timeoutId;
-    const timeoutPromise = new Promise((_, reject) => {
-      timeoutId = setTimeout(() => reject(new Error('Request timed out. Please try again.')), 20000);
-    });
     try {
-      const { data, error } = await Promise.race([
-        cartService.addToCart({
-          productId: product?.id,
-          variantId: selectedVariant?.id,
-          quantity: parseInt(quantity),
-          price: parseFloat(selectedVariant?.price || product?.basePrice)
-        }),
-        timeoutPromise,
-      ]);
+      const { data, error } = await cartService.addToCart({
+        productId: product?.id,
+        variantId: selectedVariant?.id,
+        quantity: parseInt(quantity),
+        price: parseFloat(selectedVariant?.price || product?.basePrice)
+      });
 
       if (!error && data) {
         setCartMessage({ type: 'success', text: 'Added to cart successfully!' });
@@ -92,7 +85,6 @@ export default function ProductDetailInteractive({ product }) {
       console.error('Error adding to cart:', err);
       setCartMessage({ type: 'error', text: err?.message || 'An error occurred. Please try again.' });
     } finally {
-      clearTimeout(timeoutId);
       setIsAddingToCart(false);
     }
   };

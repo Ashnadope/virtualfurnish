@@ -146,6 +146,10 @@ export async function POST(request, { params }) {
     message:
       refundGateway === 'gcash'
         ? 'Order cancelled. Your GCash refund will be processed manually within 3–5 business days.'
+        : refundGateway === 'paymongo'
+        ? (refundStatus === 'refunded'
+          ? 'Order cancelled and QRPH refund issued via PayMongo.'
+          : 'Order cancelled. Your QRPH refund is being processed via PayMongo.')
         : refundStatus === 'refunded'
         ? 'Order cancelled and refund issued to your original payment method.'
         : refundStatus === 'refund_pending'

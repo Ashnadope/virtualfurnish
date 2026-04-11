@@ -46,7 +46,7 @@ serve(async (req) => {
 
     const { data: order, error: orderError } = await supabaseClient
       .from('orders')
-      .select('*')
+      .select('*, stock_allocated')
       .eq('payment_intent_id', paymentIntentId)
       .eq('user_id', user.id)
       .single()
@@ -87,6 +87,21 @@ serve(async (req) => {
         updated_at: new Date().toISOString()
       })
       .eq('id', order.id)
+
+    // Deduct stock atomically when payment succeeds
+    if (paymentIntent.status === 'succeeded' && !order.stock_allocated) {
+      try {
+        await supabaseClient.rpc('deduct_order_stock_atomic', { p_order_id: order.id })
+        await supabaseClient
+          .from('orders')
+          .update({ stock_allocated: true })
+          .eq('id', order.id)
+        console.log('Stock deducted for order:', order.id)
+      } catch (stockErr: any) {
+        console.error('Stock deduction failed for order:', order.id, stockErr)
+        // Don't fail the confirmation — stock error is logged and can be handled manually
+      }
+    }
 
     await supabaseClient
       .from('payment_transactions')

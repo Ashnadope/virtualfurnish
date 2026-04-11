@@ -38,14 +38,10 @@ export default async function CustomerDashboard() {
   const wishlistCount = wishlistResult.count ?? 0;
 
   // ── Recent orders (top 3) ───────────────────────────────────────────────────
-  const statusMap = {
-    delivered: 'Delivered', shipped: 'In Transit',
-    processing: 'Processing', pending: 'Processing', packing: 'Processing',
-  };
   const recentOrders = orders.slice(0, 3).map(order => ({
     orderNumber: order.order_number,
     productName: order.order_items?.[0]?.name || 'Order',
-    status: statusMap[order.status] || 'Processing',
+    status: order.status || 'pending',
     orderDate: new Date(order.created_at).toLocaleDateString('en-PH'),
     totalAmount: parseFloat(order.total_amount || 0),
   }));

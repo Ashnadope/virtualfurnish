@@ -52,7 +52,7 @@ export default function ForgotPasswordPage() {
 
     const trimmed = code.trim();
     if (!trimmed) { setCodeError('Please enter the code from your email'); return; }
-    if (!/^\d{6}$/.test(trimmed)) { setCodeError('The code should be a 6-digit number'); return; }
+    if (!/^\d{6,8}$/.test(trimmed)) { setCodeError('Please enter the numeric code from your email'); return; }
 
     setCodeLoading(true);
     const { error } = await verifyResetCode(email, trimmed);
@@ -96,7 +96,7 @@ export default function ForgotPasswordPage() {
               <div className="mb-8">
                 <h2 className="font-heading font-semibold text-xl text-foreground mb-2">Forgot Password?</h2>
                 <p className="font-body text-sm text-muted-foreground">
-                  Enter your account email and we&apos;ll send you a 6-digit verification code.
+                  Enter your account email and we&apos;ll send you a verification code.
                 </p>
               </div>
 
@@ -176,7 +176,7 @@ export default function ForgotPasswordPage() {
               <div className="mb-8">
                 <h2 className="font-heading font-semibold text-xl text-foreground mb-2">Enter Verification Code</h2>
                 <p className="font-body text-sm text-muted-foreground">
-                  We sent a 6-digit code to <span className="font-medium text-foreground">{email}</span>.
+                  We sent a verification code to <span className="font-medium text-foreground">{email}</span>.
                   Enter it below to continue.
                 </p>
               </div>
@@ -191,7 +191,7 @@ export default function ForgotPasswordPage() {
                     type="text"
                     id="code"
                     inputMode="numeric"
-                    maxLength={6}
+                    maxLength={8}
                     value={code}
                     onChange={(e) => { setCode(e.target.value.replace(/\D/g, '')); setCodeError(''); }}
                     className={`
@@ -214,7 +214,7 @@ export default function ForgotPasswordPage() {
 
                 <button
                   type="submit"
-                  disabled={codeLoading || code.length !== 6}
+                  disabled={codeLoading || code.length < 6 || code.length > 8}
                   className="w-full py-3 px-4 rounded-lg bg-primary text-primary-foreground font-body font-semibold text-sm transition-fast hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {codeLoading ? (

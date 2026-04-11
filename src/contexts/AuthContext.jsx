@@ -148,9 +148,18 @@ export function AuthProvider({ children }) {
         // Skip token refreshes - they don't change the user, only re-render unnecessarily
         if (event === 'TOKEN_REFRESHED') return;
 
+        // USER_UPDATED (e.g. password change) — update user object but don't
+        // block with loading state, which can deadlock the updateUser promise.
+        if (event === 'USER_UPDATED') {
+          const sessionUser = session?.user || null;
+          if (isMounted) setUser(sessionUser);
+          if (sessionUser) loadUserProfile(sessionUser.id);
+          return;
+        }
+
         try {
-          // Only set loading for actual auth changes, not token refreshes
-          const shouldSetLoading = ['SIGNED_IN', 'SIGNED_OUT', 'USER_UPDATED'].includes(event);
+          // Only set loading for actual auth changes
+          const shouldSetLoading = ['SIGNED_IN', 'SIGNED_OUT'].includes(event);
           
           if (shouldSetLoading && isMounted) {
             setLoading(true);

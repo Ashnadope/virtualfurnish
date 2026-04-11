@@ -52,7 +52,7 @@ serve(async (req) => {
     // Fetch the payment transaction for this order
     const { data: txn, error: txnErr } = await supabase
       .from('payment_transactions')
-      .select('id, gateway, payment_intent_id, stripe_charge_id, gcash_reference_id, amount, status')
+      .select('id, gateway, payment_intent_id, stripe_charge_id, gcash_reference_id, paymongo_payment_intent_id, amount, status, metadata')
       .eq('order_id', orderId)
       .eq('transaction_type', 'payment')
       .order('created_at', { ascending: false })
@@ -100,6 +100,74 @@ serve(async (req) => {
         note: 'Manual GCash refund required. Reference ID provided.',
         processed_at: new Date().toISOString(),
       };
+
+    // ── PayMongo (QRPH) — create refund via PayMongo API ────────────────────
+    } else if (txn.gateway === 'paymongo') {
+      const paymongoSecretKey = Deno.env.get('PAYMONGO_SECRET_KEY');
+      if (!paymongoSecretKey) {
+        return new Response(JSON.stringify({ error: 'PayMongo secret key not configured' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Find the PayMongo payment ID from the transaction
+      const paymongoPaymentId = txn.gateway_transaction_id || txn.metadata?.paymongo_payment_id;
+
+      if (paymongoPaymentId) {
+        try {
+          const refundRes = await fetch('https://api.paymongo.com/v1/refunds', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'Authorization': `Basic ${btoa(paymongoSecretKey + ':')}`,
+            },
+            body: JSON.stringify({
+              data: {
+                attributes: {
+                  amount: Math.round(txn.amount * 100), // centavos
+                  payment_id: paymongoPaymentId,
+                  reason: 'requested_by_customer',
+                },
+              },
+            }),
+          });
+
+          const refundBody = await refundRes.json();
+
+          if (refundRes.ok) {
+            refundStatus = refundBody.data?.attributes?.status === 'succeeded' ? 'refunded' : 'refund_pending';
+            refundMeta = {
+              paymongo_refund_id: refundBody.data?.id,
+              paymongo_refund_status: refundBody.data?.attributes?.status,
+              processed_at: new Date().toISOString(),
+            };
+          } else {
+            console.error('PayMongo refund API error:', JSON.stringify(refundBody));
+            refundStatus = 'refund_pending';
+            refundMeta = {
+              note: 'PayMongo refund API failed. Manual refund may be required.',
+              api_error: refundBody?.errors?.[0]?.detail || 'Unknown error',
+              processed_at: new Date().toISOString(),
+            };
+          }
+        } catch (pmErr: any) {
+          console.error('PayMongo refund request failed:', pmErr);
+          refundStatus = 'refund_pending';
+          refundMeta = {
+            note: 'PayMongo refund request failed. Manual refund required.',
+            error: pmErr.message,
+            processed_at: new Date().toISOString(),
+          };
+        }
+      } else {
+        refundStatus = 'refund_pending';
+        refundMeta = {
+          note: 'No PayMongo payment ID found. Manual refund required.',
+          processed_at: new Date().toISOString(),
+        };
+      }
     }
 
     // Record refund transaction row
@@ -128,6 +196,8 @@ serve(async (req) => {
       gateway: txn.gateway,
       message: txn.gateway === 'gcash'
         ? 'GCash refund flagged for manual processing.'
+        : txn.gateway === 'paymongo'
+        ? (refundStatus === 'refunded' ? 'PayMongo refund issued successfully.' : 'PayMongo refund is pending.')
         : 'Stripe refund issued successfully.',
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
