@@ -4,7 +4,7 @@ import PropTypes from 'prop-types';
 
 export default function RecommendationCard({ product, onAddToCart, onViewDetails, isAdding }) {
   return (
-    <div className="bg-surface rounded-lg shadow-card border border-border overflow-hidden group hover:shadow-elevated transition-smooth">
+    <div className="bg-surface rounded-lg shadow-card border border-border overflow-hidden group hover:shadow-elevated transition-smooth flex flex-col">
       <div className="relative h-48 overflow-hidden">
         <AppImage
           src={product?.image}
@@ -22,11 +22,12 @@ export default function RecommendationCard({ product, onAddToCart, onViewDetails
           aria-label={`View details for ${product?.name}`}
         />
       </div>
-      <div className="p-4">
+      <div className="p-4 flex flex-col flex-1">
         <p className="font-body text-xs text-muted-foreground mb-1">{product?.category}</p>
         <h4 className="font-heading font-semibold text-foreground mb-2 line-clamp-2">
           {product?.name}
         </h4>
+        <div className="mt-auto">
         <div className="flex items-center gap-2 mb-3">
           {product?.discount ? (
             <>
@@ -79,6 +80,7 @@ export default function RecommendationCard({ product, onAddToCart, onViewDetails
             </>
           )}
         </button>
+        </div>
       </div>
     </div>
   );

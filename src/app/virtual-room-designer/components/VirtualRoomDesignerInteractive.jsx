@@ -16,6 +16,7 @@ import SaveDesignModal from './SaveDesignModal';
 import Icon from '@/components/ui/AppIcon';
 import { roomDesignService } from '@/services/roomDesign.service';
 import { cartService } from '@/services/cart.service';
+import { productService } from '@/services/product.service';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -23,6 +24,52 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData, i
   const { user, loading: authLoading } = useAuth();
   const designId = initialDesignId || null;
   const canvasRef = useRef(null);
+  const [furnitureData, setFurnitureData] = useState(initialFurnitureData);
+
+  // Silently refresh furniture data on mount (in-app navigation) and when tab regains focus
+  useEffect(() => {
+    const refresh = async () => {
+      try {
+        const result = await productService.getAllProducts();
+        if (!result?.data?.length) return;
+        // Transform raw products → one entry per active variant (same as page.jsx)
+        const transformed = result.data.flatMap((product) => {
+          const activeVariants = (product.variants || []).filter(
+            v => v?.isActive !== false && (parseInt(v?.stockQuantity) || 0) > 0
+          );
+          if (activeVariants.length === 0) return [];
+          return activeVariants.map((variant) => ({
+            id: variant.id,
+            productId: product.id,
+            name: variant.color
+              ? `${product.name} (${variant.color})`
+              : product.name,
+            category: product.category,
+            image: variant.imageUrl || null,
+            displayImages: variant.displayImages || [],
+            alt: `${product.name}${variant.color ? ` - ${variant.color}` : ''} | ${product.description || product.category}`,
+            price: variant.price ?? product.basePrice,
+            color: variant.color,
+            dimensions: variant.dimensions && typeof variant.dimensions === 'object'
+              ? `${variant.dimensions.width ?? '?'}W × ${variant.dimensions.length ?? '?'}L × ${variant.dimensions.height ?? '?'}H cm`
+              : (variant.dimensions || null),
+            material: variant.material,
+            weight: variant.weight,
+            stock: variant.stockQuantity ?? 0,
+            variantId: variant.id,
+            sku: variant.sku,
+          }));
+        });
+        if (transformed.length) setFurnitureData(transformed);
+      } catch (_) { /* silent */ }
+    };
+    refresh();
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, []);
   
   const [uploadedImage, setUploadedImage] = useState(null);
   const [currentDesignId, setCurrentDesignId] = useState(null);
@@ -304,7 +351,7 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData, i
         },
         body: JSON.stringify({ 
           imageUrl: aiImageUrl,
-          furnitureData: initialFurnitureData 
+          furnitureData: furnitureData 
         }),
       });
 
@@ -343,6 +390,7 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData, i
     const newFurniture = {
       ...furniture,
       _catalogId: furniture?.id,  // always store original variant ID for lookup
+      _originalImage: furniture?.image,  // preserve original image for display image switching
       id: `${furniture?.id}-${Date.now()}`,
       position: position || { x: 30, y: 30 },
       rotation: 0,
@@ -382,7 +430,15 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData, i
 
   const handleFurnitureScale = (furnitureId, scaleChange) => {
     const newPlacedFurniture = placedFurniture?.map(f =>
-      f?.id === furnitureId ? { ...f, scale: Math.max(0.5, Math.min(3, f?.scale + scaleChange)) } : f
+      f?.id === furnitureId ? { ...f, scale: Math.max(0.5, Math.min(6, f?.scale + scaleChange)) } : f
+    );
+    setPlacedFurniture(newPlacedFurniture);
+    saveToHistory({ image: uploadedImage, furniture: newPlacedFurniture });
+  };
+
+  const handleFurnitureImageChange = (furnitureId, newImageUrl) => {
+    const newPlacedFurniture = placedFurniture?.map(f =>
+      f?.id === furnitureId ? { ...f, image: newImageUrl } : f
     );
     setPlacedFurniture(newPlacedFurniture);
     saveToHistory({ image: uploadedImage, furniture: newPlacedFurniture });
@@ -444,18 +500,14 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData, i
       });
 
       if (error) {
-        throw error;
+        throw new Error(error);
       }
 
       setDesignName(name);
       setDesignDescription(description);
       setLastSaved(new Date());
-      
-      // Show success message (could be replaced with a toast notification)
-      alert('Design saved successfully!');
     } catch (error) {
       console.error('Failed to save design:', error);
-      alert('Failed to save design. Please try again.');
       throw error;
     }
   };
@@ -501,7 +553,7 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData, i
           body: JSON.stringify({ 
             // Use compressed URL when available (fresh upload); fall back to display URL
             imageUrl: roomAnalysisImageUrl || uploadedImage,
-            furnitureData: initialFurnitureData 
+            furnitureData: furnitureData 
           }),
         });
 
@@ -601,7 +653,7 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData, i
 
   const handleApplyRecommendation = (rec) => {
     // furnitureId may be a variant ID (new format) or a product ID (old saved designs)
-    const furniture = initialFurnitureData?.find(
+    const furniture = furnitureData?.find(
       item => item?.id === rec?.furnitureId || item?.productId === rec?.furnitureId
     );
     if (furniture) {
@@ -616,7 +668,7 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData, i
     let updatedFurniture = [...placedFurniture];
     let lastAddedId = null;
     recs.forEach((rec, i) => {
-      const furniture = initialFurnitureData?.find(
+      const furniture = furnitureData?.find(
         item => item?.id === rec?.furnitureId || item?.productId === rec?.furnitureId
       );
       if (!furniture) return;
@@ -673,7 +725,7 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData, i
   const selectedFurnitureLookupId = selectedFurniture?._catalogId
     || selectedFurniture?.id?.replace(/-\d+(-\d+)?$/, '');
   const selectedFurnitureDetails = selectedFurniture
-    ? initialFurnitureData?.find(
+    ? furnitureData?.find(
         item => item?.id === selectedFurnitureLookupId || item?.productId === selectedFurnitureLookupId
       ) ?? selectedFurniture  // last resort: use the placed item itself (has name/image/price)
     : null;
@@ -862,7 +914,7 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData, i
                           })
                           ?.map((rec, index) => {
                             // furnitureId may be a variant ID (new) or product ID (old saved designs)
-                            const furniture = initialFurnitureData?.find(
+                            const furniture = furnitureData?.find(
                               item => item?.id === rec?.furnitureId || item?.productId === rec?.furnitureId
                             );
                             return (
@@ -1018,6 +1070,7 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData, i
                   onFurnitureMove={handleFurnitureMove}
                   onFurnitureRotate={handleFurnitureRotate}
                   onFurnitureScale={handleFurnitureScale}
+                  onFurnitureImageChange={handleFurnitureImageChange}
                   onFurnitureDelete={handleFurnitureDelete}
                   onAddFurniture={handleAddFurniture}
                   onCanvasDeselect={() => {
@@ -1030,7 +1083,7 @@ export default function VirtualRoomDesignerInteractive({ initialFurnitureData, i
                 />
 
                 <FurniturePalette
-                  furnitureItems={initialFurnitureData}
+                  furnitureItems={furnitureData}
                   onAddFurniture={handleAddFurniture}
                   aiRecs={aiAnalysis?.furnitureRecommendations || []}
                   isOpen={furnitureCatalogOpen}

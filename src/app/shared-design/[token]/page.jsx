@@ -218,173 +218,6 @@ export default function SharedDesignPage() {
                   )}
                 </div>
               </div>
-
-              {/* AI Analysis */}
-              {design.design_data?.aiAnalysis && (() => {
-                const ai = design.design_data.aiAnalysis;
-                const room = ai.roomAnalysis || {};
-                const palette = ai.colorPaletteSuggestions || {};
-                // layoutSuggestions is an array of {area, suggestion}
-                const layoutItems = Array.isArray(ai.layoutSuggestions) ? ai.layoutSuggestions : [];
-                const recommendations = ai.furnitureRecommendations || [];
-
-                // Use fetched Supabase variant data; fall back to placed furniture names
-                const placedMap = {};
-                (design.design_data?.furniture || []).forEach(item => {
-                  const cid = item._catalogId || item.id?.replace(/-\d+(-\d+)?$/, '');
-                  if (cid) placedMap[cid] = { name: item.name, image: item.image };
-                });
-                const furnitureDataMap = { ...placedMap, ...variantDataMap };
-
-                return (
-                  <div className="bg-surface rounded-lg shadow-card p-6 mt-6 border border-border">
-                    <h2 className="font-heading font-semibold text-lg text-foreground mb-4 flex items-center gap-2">
-                      <Icon name="SparklesIcon" size={20} variant="solid" className="text-primary" />
-                      AI Room Analysis
-                    </h2>
-                    <div className="space-y-5">
-
-                      {/* Room meta: type, dimensions, style, lighting */}
-                      {(room.roomType || room.style || room.estimatedDimensions || room.lighting) && (
-                        <div className="grid grid-cols-2 gap-3">
-                          {room.roomType && (
-                            <div>
-                              <p className="font-body font-medium text-xs text-muted-foreground mb-1">Room Type</p>
-                              <p className="font-body text-sm text-foreground">{room.roomType}</p>
-                            </div>
-                          )}
-                          {room.style && (
-                            <div>
-                              <p className="font-body font-medium text-xs text-muted-foreground mb-1">Style</p>
-                              <p className="font-body text-sm text-foreground">{room.style}</p>
-                            </div>
-                          )}
-                          {room.estimatedDimensions && (
-                            <div>
-                              <p className="font-body font-medium text-xs text-muted-foreground mb-1">Dimensions</p>
-                              <p className="font-body text-sm text-foreground">{room.estimatedDimensions}</p>
-                            </div>
-                          )}
-                          {room.lighting && (
-                            <div>
-                              <p className="font-body font-medium text-xs text-muted-foreground mb-1">Lighting</p>
-                              <p className="font-body text-sm text-foreground">{room.lighting}</p>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Dominant colors */}
-                      {room.dominantColors?.length > 0 && (
-                        <div>
-                          <p className="font-body font-medium text-xs text-muted-foreground mb-2">Dominant Colors</p>
-                          <div className="flex flex-wrap gap-2">
-                            {room.dominantColors.map((entry, i) => {
-                              const hex = entry.match(/#([0-9A-Fa-f]{3,6})/)?.[0];
-                              const label = entry.replace(/\s*\(.*?\)/, '').trim();
-                              return (
-                                <div key={i} className="flex items-center gap-1.5 bg-muted px-2 py-1 rounded-full text-xs font-body text-foreground">
-                                  {hex && <span className="w-3 h-3 rounded-full border border-border flex-shrink-0" style={{ backgroundColor: hex }} />}
-                                  {label}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Color palette suggestions */}
-                      {Object.keys(palette).length > 0 && (
-                        <div>
-                          <p className="font-body font-medium text-xs text-muted-foreground mb-2">Suggested Color Palette</p>
-                          <div className="flex flex-wrap gap-2">
-                            {Object.entries(palette).map(([name, hex]) => (
-                              <div key={name} className="flex items-center gap-1.5 bg-muted px-2 py-1 rounded-full text-xs font-body text-foreground">
-                                <span className="w-3 h-3 rounded-full border border-border flex-shrink-0" style={{ backgroundColor: hex }} />
-                                {name} <span className="text-muted-foreground">{hex}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Layout suggestions */}
-                      {layoutItems.length > 0 && (
-                        <div>
-                          <p className="font-body font-medium text-xs text-muted-foreground mb-2">Layout Suggestions</p>
-                          <div className="space-y-2">
-                            {layoutItems.map((item, i) => (
-                              <div key={i} className="p-2 bg-muted rounded-lg">
-                                {item.area && <p className="font-body text-xs font-semibold text-foreground mb-0.5">{item.area}</p>}
-                                {item.suggestion && <p className="font-body text-xs text-muted-foreground">{item.suggestion}</p>}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Furniture recommendations */}
-                      {recommendations.length > 0 && (
-                        <div>
-                          <p className="font-body font-medium text-xs text-muted-foreground mb-2">
-                            Furniture Recommendations ({recommendations.length})
-                          </p>
-                          <div className="space-y-3">
-                            {recommendations.map((rec, i) => {
-                              const mapped = furnitureDataMap[rec.furnitureId] || {};
-                              const displayName = rec.furnitureName || mapped.name || '—';
-                              const displayImage = mapped.image || null;
-                              const reason = rec.reason || rec.reasonForRecommendation;
-                              const colorAdvice = rec.colorMatch || rec.colorMatchingAdvice;
-                              return (
-                                <div key={i} className="p-3 bg-muted rounded-lg border border-border space-y-2">
-                                  <div className="flex items-start gap-3">
-                                    {/* Thumbnail */}
-                                    <div className="w-14 h-14 rounded-md overflow-hidden bg-background border border-border flex-shrink-0">
-                                      {displayImage ? (
-                                        <AppImage
-                                          src={displayImage}
-                                          alt={displayName}
-                                          className="w-full h-full object-cover"
-                                        />
-                                      ) : (
-                                        <div className="w-full h-full flex items-center justify-center">
-                                          <Icon name="CubeIcon" size={20} variant="outline" className="text-muted-foreground" />
-                                        </div>
-                                      )}
-                                    </div>
-                                    {/* Name + priority */}
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-start justify-between gap-2">
-                                        <p className="font-body text-sm font-semibold text-foreground leading-tight">{displayName}</p>
-                                        <span className={`px-2 py-0.5 rounded-full text-xs font-body font-medium flex-shrink-0 ${
-                                          rec.priority === 'high' ? 'bg-error/10 text-error' :
-                                          rec.priority === 'medium' ? 'bg-warning/10 text-warning' :
-                                          'bg-muted-foreground/10 text-muted-foreground'
-                                        }`}>{rec.priority || 'low'}</span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                  {reason && (
-                                    <p className="font-body text-xs text-foreground"><span className="font-medium">Why: </span>{reason}</p>
-                                  )}
-                                  {colorAdvice && (
-                                    <p className="font-body text-xs text-foreground"><span className="font-medium">Color: </span>{colorAdvice}</p>
-                                  )}
-                                  {rec.placementSuggestion && (
-                                    <p className="font-body text-xs text-foreground"><span className="font-medium">Placement: </span>{rec.placementSuggestion}</p>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-
-                    </div>
-                  </div>
-                );
-              })()}
             </div>
 
             {/* Furniture List */}
@@ -481,6 +314,165 @@ export default function SharedDesignPage() {
               </div>
             </div>
           </div>
+
+          {/* AI Analysis - Full Width Row 2 */}
+          {design.design_data?.aiAnalysis && (() => {
+            const ai = design.design_data.aiAnalysis;
+            const room = ai.roomAnalysis || {};
+            const palette = ai.colorPaletteSuggestions || {};
+            const layoutItems = Array.isArray(ai.layoutSuggestions) ? ai.layoutSuggestions : [];
+            const recommendations = ai.furnitureRecommendations || [];
+
+            const placedMap = {};
+            (design.design_data?.furniture || []).forEach(item => {
+              const cid = item._catalogId || item.id?.replace(/-\d+(-\d+)?$/, '');
+              if (cid) placedMap[cid] = { name: item.name, image: item.image };
+            });
+            const furnitureDataMap = { ...placedMap, ...variantDataMap };
+
+            return (
+              <div className="bg-surface rounded-lg shadow-card p-6 mt-6 border border-border">
+                <h2 className="font-heading font-semibold text-lg text-foreground mb-4 flex items-center gap-2">
+                  <Icon name="SparklesIcon" size={20} variant="solid" className="text-primary" />
+                  AI Room Analysis
+                </h2>
+                <div className="space-y-5">
+
+                  {(room.roomType || room.style || room.estimatedDimensions || room.lighting) && (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {room.roomType && (
+                        <div>
+                          <p className="font-body font-medium text-xs text-muted-foreground mb-1">Room Type</p>
+                          <p className="font-body text-sm text-foreground">{room.roomType}</p>
+                        </div>
+                      )}
+                      {room.style && (
+                        <div>
+                          <p className="font-body font-medium text-xs text-muted-foreground mb-1">Style</p>
+                          <p className="font-body text-sm text-foreground">{room.style}</p>
+                        </div>
+                      )}
+                      {room.estimatedDimensions && (
+                        <div>
+                          <p className="font-body font-medium text-xs text-muted-foreground mb-1">Dimensions</p>
+                          <p className="font-body text-sm text-foreground">{room.estimatedDimensions}</p>
+                        </div>
+                      )}
+                      {room.lighting && (
+                        <div>
+                          <p className="font-body font-medium text-xs text-muted-foreground mb-1">Lighting</p>
+                          <p className="font-body text-sm text-foreground">{room.lighting}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {room.dominantColors?.length > 0 && (
+                    <div>
+                      <p className="font-body font-medium text-xs text-muted-foreground mb-2">Dominant Colors</p>
+                      <div className="flex flex-wrap gap-2">
+                        {room.dominantColors.map((entry, i) => {
+                          const hex = entry.match(/#([0-9A-Fa-f]{3,6})/)?.[0];
+                          const label = entry.replace(/\s*\(.*?\)/, '').trim();
+                          return (
+                            <div key={i} className="flex items-center gap-1.5 bg-muted px-2 py-1 rounded-full text-xs font-body text-foreground">
+                              {hex && <span className="w-3 h-3 rounded-full border border-border flex-shrink-0" style={{ backgroundColor: hex }} />}
+                              {label}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {Object.keys(palette).length > 0 && (
+                    <div>
+                      <p className="font-body font-medium text-xs text-muted-foreground mb-2">Suggested Color Palette</p>
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(palette).map(([name, hex]) => (
+                          <div key={name} className="flex items-center gap-1.5 bg-muted px-2 py-1 rounded-full text-xs font-body text-foreground">
+                            <span className="w-3 h-3 rounded-full border border-border flex-shrink-0" style={{ backgroundColor: hex }} />
+                            {name} <span className="text-muted-foreground">{hex}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {layoutItems.length > 0 && (
+                    <div>
+                      <p className="font-body font-medium text-xs text-muted-foreground mb-2">Layout Suggestions</p>
+                      <div className="space-y-2">
+                        {layoutItems.map((item, i) => (
+                          <div key={i} className="p-2 bg-muted rounded-lg">
+                            {item.area && <p className="font-body text-xs font-semibold text-foreground mb-0.5">{item.area}</p>}
+                            {item.suggestion && <p className="font-body text-xs text-muted-foreground">{item.suggestion}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {recommendations.length > 0 && (
+                    <div>
+                      <p className="font-body font-medium text-xs text-muted-foreground mb-2">
+                        Furniture Recommendations ({recommendations.length})
+                      </p>
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        {recommendations.map((rec, i) => {
+                          const mapped = furnitureDataMap[rec.furnitureId] || {};
+                          const displayName = rec.furnitureName || mapped.name || '—';
+                          const displayImage = mapped.image || null;
+                          const reason = rec.reason || rec.reasonForRecommendation;
+                          const colorAdvice = rec.colorMatch || rec.colorMatchingAdvice;
+                          return (
+                            <div key={i} className="p-3 bg-muted rounded-lg border border-border space-y-2">
+                              <div className="flex items-start gap-3">
+                                <div className="w-14 h-14 rounded-md overflow-hidden bg-background border border-border flex-shrink-0">
+                                  {displayImage ? (
+                                    <AppImage
+                                      src={displayImage}
+                                      alt={displayName}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center">
+                                      <Icon name="CubeIcon" size={20} variant="outline" className="text-muted-foreground" />
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <p className="font-body text-sm font-semibold text-foreground leading-tight">{displayName}</p>
+                                    <span className={`px-2 py-0.5 rounded-full text-xs font-body font-medium flex-shrink-0 ${
+                                      rec.priority === 'high' ? 'bg-error/10 text-error' :
+                                      rec.priority === 'medium' ? 'bg-warning/10 text-warning' :
+                                      'bg-muted-foreground/10 text-muted-foreground'
+                                    }`}>{rec.priority || 'low'}</span>
+                                  </div>
+                                </div>
+                              </div>
+                              {reason && (
+                                <p className="font-body text-xs text-foreground"><span className="font-medium">Why: </span>{reason}</p>
+                              )}
+                              {colorAdvice && (
+                                <p className="font-body text-xs text-foreground"><span className="font-medium">Color: </span>{colorAdvice}</p>
+                              )}
+                              {rec.placementSuggestion && (
+                                <p className="font-body text-xs text-foreground"><span className="font-medium">Placement: </span>{rec.placementSuggestion}</p>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+              </div>
+            );
+          })()}
+
         </div>
       </main>
     </div>

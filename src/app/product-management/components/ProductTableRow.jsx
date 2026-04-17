@@ -27,7 +27,9 @@ export default function ProductTableRow({ product, onEdit, onDelete, onToggleSta
   };
 
   const getStatusColor = (status) => {
-    return status === 'active' ?'bg-success/10 text-success border-success/20' :'bg-muted text-muted-foreground border-border';
+    if (status === 'active') return 'bg-success/10 text-success border-success/20';
+    if (status === 'archived') return 'bg-error/10 text-error border-error/20';
+    return 'bg-muted text-muted-foreground border-border';
   };
 
   const getStockSummary = (product) => {
@@ -113,8 +115,9 @@ export default function ProductTableRow({ product, onEdit, onDelete, onToggleSta
           onClick={() => onToggleStatus(product?.id)}
           className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium border transition-fast ${getStatusColor(product?.status)}`}
           aria-label={`Toggle status for ${product?.name}`}
+          disabled={product?.status === 'archived'}
         >
-          {product?.status === 'active' ? 'Active' : 'Inactive'}
+          {product?.status === 'active' ? 'Active' : product?.status === 'archived' ? 'Archived' : 'Inactive'}
         </button>
       </td>
       <td className="px-4 py-3">

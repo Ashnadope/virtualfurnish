@@ -158,13 +158,6 @@ export function AuthProvider({ children }) {
         }
 
         try {
-          // Only set loading for actual auth changes
-          const shouldSetLoading = ['SIGNED_IN', 'SIGNED_OUT'].includes(event);
-          
-          if (shouldSetLoading && isMounted) {
-            setLoading(true);
-          }
-          
           const sessionUser = session?.user || null;
           
           if (isMounted) {
@@ -175,10 +168,6 @@ export function AuthProvider({ children }) {
             await loadUserProfile(sessionUser.id);
           } else if (isMounted) {
             setUserProfile(null);
-          }
-          
-          if (isMounted && shouldSetLoading) {
-            setLoading(false);
           }
         } catch (error) {
           console.error('Error in auth state change handler:', error);
@@ -250,12 +239,6 @@ export function AuthProvider({ children }) {
         
         if (error) {
           return { data, error };
-        }
-
-        // The trigger will automatically create the user_profiles record,
-        // but we wait a moment for it to complete
-        if (data?.user?.id) {
-          await new Promise(resolve => setTimeout(resolve, 500));
         }
 
         return { data, error };

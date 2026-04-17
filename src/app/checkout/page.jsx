@@ -7,6 +7,8 @@ import QRPHPaymentForm from '@/components/payment/QRPHPaymentForm';
 import { paymentService } from '@/services/payment.service';
 import Header from '@/components/common/Header';
 import Sidebar from '@/components/common/Sidebar';
+import SearchableDropdown from '@/components/ui/SearchableDropdown';
+import { getProvinces, getCities, getBarangays, getPostalCode } from '@/utils/philippineAddresses';
 
 // Force dynamic rendering to prevent prerendering during build
 export const dynamic = 'force-dynamic';
@@ -27,6 +29,7 @@ export default function CheckoutPage() {
     address_line_2: '',
     city: '',
     state: '',
+    barangay: '',
     postal_code: '',
     phone: '',
     country: 'PH'
@@ -115,6 +118,7 @@ export default function CheckoutPage() {
             address_line_2: billingAddress?.address_line_2 || '',
             city: billingAddress?.city || '',
             state: billingAddress?.state || '',
+            barangay: billingAddress?.barangay || '',
             postal_code: billingAddress?.postal_code || '',
             phone: billingAddress?.phone || profile?.phone || '',
             country: billingAddress?.country || 'PH'
@@ -135,6 +139,7 @@ export default function CheckoutPage() {
             address_line_2: billingAddress?.address_line_2,
             city: billingAddress?.city,
             state: billingAddress?.state,
+            barangay: billingAddress?.barangay,
             postal_code: billingAddress?.postal_code,
             country: billingAddress?.country || 'PH'
           }
@@ -154,10 +159,7 @@ export default function CheckoutPage() {
 
         // Calculate shipping if address already exists
         if (billingAddress?.postal_code) {
-          // Defer to after state is set
-          setTimeout(() => {
-            calculateShipping(billingAddress.postal_code)
-          }, 0)
+          calculateShipping(billingAddress.postal_code, cartData)
         }
 
       } catch (err) {
@@ -287,6 +289,10 @@ export default function CheckoutPage() {
     if (!shippingAddress?.state?.trim()) {
       errors.state = 'Province/State is required'
     }
+
+    if (!shippingAddress?.barangay?.trim()) {
+      errors.barangay = 'Barangay is required'
+    }
     
     if (!shippingAddress?.postal_code?.trim()) {
       errors.postal_code = 'Postal code is required'
@@ -302,10 +308,23 @@ export default function CheckoutPage() {
   }
 
   const handleAddressChange = (field, value) => {
-    setShippingAddress(prev => ({
-      ...prev,
-      [field]: value
-    }))
+    setShippingAddress(prev => {
+      const updated = { ...prev, [field]: value }
+
+      // Cascading resets: province → city → barangay → postal code
+      if (field === 'state') {
+        updated.city = ''
+        updated.barangay = ''
+        updated.postal_code = ''
+      } else if (field === 'city') {
+        updated.barangay = ''
+        // Auto-fill postal code from address data
+        const postal = getPostalCode(prev.state, value)
+        updated.postal_code = postal || prev.postal_code
+      }
+
+      return updated
+    })
     
     // Clear error for this field
     if (addressErrors?.[field]) {
@@ -355,12 +374,13 @@ export default function CheckoutPage() {
   }
 
   // Calculate shipping cost from J&T rate card
-  const calculateShipping = async (postalCode) => {
+  const calculateShipping = async (postalCode, cartData = null) => {
     if (!postalCode || !/^\d{4}$/.test(postalCode)) return
 
     setShippingLoading(true)
     try {
-      const items = cartItems?.map(item => ({
+      const source = cartData || cartItems
+      const items = source?.map(item => ({
         weight: item?.products?.weight || item?.product_variants?.weight || '5',
         quantity: item?.quantity || 1,
       }))
@@ -376,16 +396,23 @@ export default function CheckoutPage() {
 
       if (res.ok) {
         const data = await res.json()
-        setShippingCost(data.shippingCost || 0)
-        setShippingDetails(data)
+        const sourceItems = cartData || cartItems
+        const subtotal = sourceItems?.reduce((sum, item) => {
+          const price = item?.price || item?.product_variants?.price || 0
+          return sum + (parseFloat(price) * (item?.quantity || 1))
+        }, 0)
+        const isFreeShipping = subtotal >= 50000
+        const finalShippingCost = isFreeShipping ? 0 : (data.shippingCost || 0)
+        setShippingCost(finalShippingCost)
+        setShippingDetails({ ...data, isFreeShipping })
 
         // Recalculate order totals with shipping
         setOrderData(prev => {
           if (!prev) return prev
-          const newTotal = prev.subtotal + prev.tax + data.shippingCost
+          const newTotal = prev.subtotal + prev.tax + finalShippingCost
           return {
             ...prev,
-            shipping_cost: data.shippingCost,
+            shipping_cost: finalShippingCost,
             total: newTotal,
             amount: Math.round(newTotal * 100),
           }
@@ -401,6 +428,16 @@ export default function CheckoutPage() {
 
   const handleContinueToPayment = () => {
     if (isEditingAddress) return
+
+    // Validate shipping address before transitioning — catches missing
+    // barangay from legacy addresses and displays errors in-context.
+    const validationErrors = validateShippingAddress()
+    if (Object.keys(validationErrors).length > 0) {
+      setAddressErrors(validationErrors)
+      setIsEditingAddress(true)   // force edit mode so user sees the errors
+      return
+    }
+
     // Only wipe the existing payment intent when no order has been created yet.
     // If the user goes back to step 2 just to fix the shipping address, we reuse
     // the existing order + PaymentIntent instead of creating a duplicate.
@@ -592,11 +629,16 @@ export default function CheckoutPage() {
                         ₱{shippingCost?.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                       </span>
                     ) : (
-                      <span className="text-gray-400 text-xs italic">
-                        {shippingAddress?.postal_code ? 'FREE' : 'Enter address to calculate'}
+                      <span className={shippingDetails?.isFreeShipping ? 'text-success font-medium' : 'text-gray-400 text-xs italic'}>
+                        {shippingAddress?.postal_code ? (shippingDetails?.isFreeShipping ? 'FREE' : 'FREE') : 'Enter address to calculate'}
                       </span>
                     )}
                   </div>
+                  {shippingDetails?.isFreeShipping && shippingAddress?.postal_code && (
+                    <div className="text-xs text-success text-right">
+                      Free shipping on orders over ₱50,000
+                    </div>
+                  )}
                   {shippingDetails && shippingCost > 0 && (
                     <div className="text-xs text-gray-400 text-right">
                       J&T Express {shippingDetails.tierLabel} · {shippingDetails.weightKg} kg
@@ -695,6 +737,9 @@ export default function CheckoutPage() {
                         {shippingAddress?.address_line_2 && (
                           <p className="text-gray-700">{shippingAddress?.address_line_2}</p>
                         )}
+                        {shippingAddress?.barangay && (
+                          <p className="text-gray-700">Brgy. {shippingAddress?.barangay}</p>
+                        )}
                         <p className="text-gray-700">
                           {shippingAddress?.city}, {shippingAddress?.state} {shippingAddress?.postal_code}
                         </p>
@@ -736,72 +781,67 @@ export default function CheckoutPage() {
 
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            City *
-                          </label>
-                          <input
-                            type="text"
-                            value={shippingAddress?.city}
-                            onChange={(e) => handleAddressChange('city', e?.target?.value)}
-                            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                              addressErrors?.city ? 'border-red-500' : 'border-gray-300'
-                            }`}
-                            placeholder="City"
+                          <SearchableDropdown
+                            label="Province/State"
+                            options={getProvinces()}
+                            value={shippingAddress?.state}
+                            onChange={(val) => handleAddressChange('state', val)}
+                            placeholder="Select province"
+                            required
+                            error={addressErrors?.state}
                           />
-                          {addressErrors?.city && (
-                            <p className="mt-1 text-sm text-red-600">{addressErrors?.city}</p>
-                          )}
                         </div>
 
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Province/State *
-                          </label>
-                          <input
-                            type="text"
-                            value={shippingAddress?.state}
-                            onChange={(e) => handleAddressChange('state', e?.target?.value)}
-                            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                              addressErrors?.state ? 'border-red-500' : 'border-gray-300'
-                            }`}
-                            placeholder="Province or State"
+                          <SearchableDropdown
+                            label="City/Municipality"
+                            options={getCities(shippingAddress?.state)}
+                            value={shippingAddress?.city}
+                            onChange={(val) => handleAddressChange('city', val)}
+                            placeholder={shippingAddress?.state ? 'Select city' : 'Select province first'}
+                            disabled={!shippingAddress?.state}
+                            required
+                            error={addressErrors?.city}
                           />
-                          {addressErrors?.state && (
-                            <p className="mt-1 text-sm text-red-600">{addressErrors?.state}</p>
-                          )}
                         </div>
                       </div>
 
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Postal Code *
+                          <SearchableDropdown
+                            label="Barangay"
+                            options={getBarangays(shippingAddress?.state, shippingAddress?.city)}
+                            value={shippingAddress?.barangay}
+                            onChange={(val) => handleAddressChange('barangay', val)}
+                            placeholder={shippingAddress?.city ? 'Select barangay' : 'Select city first'}
+                            disabled={!shippingAddress?.city}
+                            required
+                            error={addressErrors?.barangay}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Postal Code <span className="text-red-500">*</span>
                           </label>
                           <input
                             type="text"
                             value={shippingAddress?.postal_code}
                             onChange={(e) => handleAddressChange('postal_code', e?.target?.value)}
-                            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                            className={`w-full px-3 py-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                              shippingAddress?.city && getPostalCode(shippingAddress?.state, shippingAddress?.city)
+                                ? 'bg-gray-50 text-gray-600'
+                                : ''
+                            } ${
                               addressErrors?.postal_code ? 'border-red-500' : 'border-gray-300'
                             }`}
                             placeholder="4-digit postal code"
                             maxLength={4}
+                            readOnly={!!(shippingAddress?.city && getPostalCode(shippingAddress?.state, shippingAddress?.city))}
                           />
                           {addressErrors?.postal_code && (
-                            <p className="mt-1 text-sm text-red-600">{addressErrors?.postal_code}</p>
+                            <p className="mt-1 text-xs text-red-500">{addressErrors?.postal_code}</p>
                           )}
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Country
-                          </label>
-                          <input
-                            type="text"
-                            value="Philippines"
-                            disabled
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed"
-                          />
                         </div>
                       </div>
                       <div>
@@ -875,6 +915,9 @@ export default function CheckoutPage() {
                         <p className="font-medium text-gray-900">{shippingAddress?.address_line_1}</p>
                         {shippingAddress?.address_line_2 && (
                           <p className="text-gray-700">{shippingAddress?.address_line_2}</p>
+                        )}
+                        {shippingAddress?.barangay && (
+                          <p className="text-gray-700">Brgy. {shippingAddress?.barangay}</p>
                         )}
                         <p className="text-gray-700">
                           {shippingAddress?.city}, {shippingAddress?.state} {shippingAddress?.postal_code}

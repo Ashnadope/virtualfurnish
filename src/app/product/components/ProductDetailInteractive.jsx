@@ -7,11 +7,13 @@ import AppImage from '@/components/ui/AppImage';
 import Icon from '@/components/ui/AppIcon';
 import { cartService } from '@/services/cart.service';
 import { wishlistService } from '@/services/wishlist.service';
+import { productService } from '@/services/product.service';
 import { useAuth } from '@/hooks/auth.hook';
 
-export default function ProductDetailInteractive({ product }) {
+export default function ProductDetailInteractive({ product: initialProduct }) {
   const router = useRouter();
   const { user } = useAuth();
+  const [product, setProduct] = useState(initialProduct);
   const [selectedVariant, setSelectedVariant] = useState(product?.variants?.[0]);
   const [quantity, setQuantity] = useState(1);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
@@ -35,6 +37,29 @@ export default function ProductDetailInteractive({ product }) {
       .catch(() => {});
     return () => { cancelled = true; };
   }, [user?.id, product?.id, selectedVariant?.id]);
+
+  // Refresh product data on mount and when tab regains focus
+  useEffect(() => {
+    const refresh = async () => {
+      try {
+        const { data } = await productService.getProductById(initialProduct?.id);
+        if (data) {
+          setProduct(data);
+          // Update selected variant's stock without losing selection
+          if (selectedVariant) {
+            const updated = data.variants?.find(v => v.id === selectedVariant.id);
+            if (updated) setSelectedVariant(updated);
+          }
+        }
+      } catch (_) { /* silent */ }
+    };
+    refresh();
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [initialProduct?.id]);
 
   const maxQty = selectedVariant?.stockQuantity ?? 99;
 
@@ -62,6 +87,11 @@ export default function ProductDetailInteractive({ product }) {
   const handleAddToCart = async () => {
     if (!selectedVariant) {
       setCartMessage({ type: 'error', text: 'Please select a variant' });
+      return;
+    }
+
+    if (!user) {
+      router.push('/login');
       return;
     }
 
@@ -399,7 +429,7 @@ export default function ProductDetailInteractive({ product }) {
               <Icon name="TruckIcon" size={20} className="text-primary mt-1 flex-shrink-0" />
               <div>
                 <p className="font-semibold text-foreground">Free Shipping</p>
-                <p className="text-sm text-muted-foreground">On orders over PHP 2,000</p>
+                <p className="text-sm text-muted-foreground">On orders over ₱50,000</p>
               </div>
             </div>
             <div className="flex items-start gap-3">

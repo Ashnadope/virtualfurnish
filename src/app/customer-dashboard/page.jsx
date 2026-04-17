@@ -91,8 +91,9 @@ export default async function CustomerDashboard() {
   if (aiVariantIds.length > 0) {
     const { data: variants } = await supabase
       .from('product_variants')
-      .select('id, image_url, price, stock_quantity, products(id, name, category, image_url, base_price)')
+      .select('id, image_url, price, stock_quantity, products!inner(id, name, category, image_url, base_price)')
       .in('id', aiVariantIds)
+      .eq('products.is_archived', false)
       .gt('stock_quantity', 0);
 
     for (const v of variants || []) {
@@ -114,6 +115,7 @@ export default async function CustomerDashboard() {
       .from('products')
       .select('id, name, category, image_url, base_price, product_variants(id, price, image_url, stock_quantity)')
       .eq('is_active', true)
+      .eq('is_archived', false)
       .order('created_at', { ascending: false })
       .limit(20);
 

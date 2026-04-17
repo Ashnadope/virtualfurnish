@@ -54,7 +54,7 @@ export default function AnalyticsInteractive({ initialData }) {
         ))}
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <SalesChart data={data?.salesData} title="Monthly Sales Trends" />
+        <SalesChart data={data?.salesData} title={data?.salesChartTitle || 'Sales Trends'} />
         <CustomerSegmentChart data={data?.customerSegments} title="Customer Segments" />
       </div>
       <ProductPerformanceTable products={data?.topProducts} />

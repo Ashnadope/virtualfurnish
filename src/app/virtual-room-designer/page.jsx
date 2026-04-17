@@ -36,6 +36,7 @@ export default async function VirtualRoomDesignerPage({ searchParams }) {
         : product.name,
       category: product.category,
       image: variant.imageUrl || null,
+      displayImages: variant.displayImages || [],
       alt: `${product.name}${variant.color ? ` - ${variant.color}` : ''} | ${product.description || product.category}`,
       price: variant.price ?? product.basePrice,
       color: variant.color,

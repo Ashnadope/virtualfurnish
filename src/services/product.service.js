@@ -12,7 +12,7 @@ export const productService = {
       const { data, error } = await supabase?.from('products')?.select(`
           *,
           product_variants (*)
-        `)?.eq('is_archived', false)?.order('created_at', { ascending: false });
+        `)?.eq('is_active', true)?.eq('is_archived', false)?.order('created_at', { ascending: false });
 
       if (error) throw error;
 
@@ -46,6 +46,7 @@ export const productService = {
             material: variant?.material,
             weight: variant?.weight,
             imageUrl: variant?.image_url,
+            displayImages: variant?.display_images || [],
             price: variant?.price,
             stockQuantity: variant?.stock_quantity,
             isActive: variant?.is_active,
@@ -62,6 +63,66 @@ export const productService = {
   },
 
   /**
+   * Get all products for admin management (includes inactive and archived)
+   * @returns {Promise<{data: Array, error: any}>}
+   */
+  async getAllProductsAdmin() {
+    try {
+      const supabase = createClient();
+      
+      const { data, error } = await supabase?.from('products')?.select(`
+          *,
+          product_variants (*)
+        `)?.order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const formattedData = data?.map(product => ({
+        id: product?.id,
+        name: product?.name,
+        brand: product?.brand,
+        category: product?.category,
+        description: product?.description,
+        imageUrl: product?.image_url,
+        imageAlt: product?.image_alt,
+        basePrice: product?.base_price,
+        sku: product?.sku,
+        dimensions: product?.dimensions,
+        material: product?.material,
+        weight: product?.weight,
+        color: product?.color,
+        stockQuantity: product?.stock_quantity,
+        isActive: product?.is_active,
+        isArchived: product?.is_archived,
+        createdAt: product?.created_at,
+        updatedAt: product?.updated_at,
+        variants: product?.product_variants
+          ?.map(variant => ({
+            id: variant?.id,
+            name: variant?.name,
+            sku: variant?.sku,
+            color: variant?.color,
+            dimensions: variant?.dimensions,
+            material: variant?.material,
+            weight: variant?.weight,
+            imageUrl: variant?.image_url,
+            displayImages: variant?.display_images || [],
+            price: variant?.price,
+            stockQuantity: variant?.stock_quantity,
+            isActive: variant?.is_active,
+            productId: variant?.product_id,
+            createdAt: variant?.created_at
+          })) || []
+      })) || [];
+
+      return { data: formattedData, error: null };
+    } catch (error) {
+      console.error('Error fetching admin products:', error);
+      return { data: [], error: error?.message };
+    }
+  },
+
+  /**
    * Get products by category
    * @param {string} category - Category to filter by
    * @returns {Promise<{data: Array, error: any}>}
@@ -73,7 +134,7 @@ export const productService = {
       const { data, error } = await supabase?.from('products')?.select(`
           *,
           product_variants (*)
-        `)?.eq('category', category)?.eq('is_archived', false)?.order('created_at', { ascending: false });
+        `)?.eq('category', category)?.eq('is_active', true)?.eq('is_archived', false)?.order('created_at', { ascending: false });
 
       if (error) throw error;
 
@@ -101,6 +162,7 @@ export const productService = {
             material: variant?.material,
             weight: variant?.weight,
             imageUrl: variant?.image_url,
+            displayImages: variant?.display_images || [],
             price: variant?.price,
             stockQuantity: variant?.stock_quantity,
             isActive: variant?.is_active,
@@ -156,6 +218,7 @@ export const productService = {
             material: variant?.material,
             weight: variant?.weight,
             imageUrl: variant?.image_url,
+            displayImages: variant?.display_images || [],
             price: variant?.price,
             stockQuantity: variant?.stock_quantity,
             isActive: variant?.is_active,
@@ -210,6 +273,7 @@ export const productService = {
             material: variant?.material,
             weight: variant?.weight,
             imageUrl: variant?.image_url,
+            displayImages: variant?.display_images || [],
             price: variant?.price,
             stockQuantity: variant?.stock_quantity,
             isActive: variant?.is_active,

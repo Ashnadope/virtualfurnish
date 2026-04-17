@@ -5,7 +5,7 @@ import Icon from '@/components/ui/AppIcon';
 
 export default function ProductFilters({ filters, onFilterChange, onReset }) {
   const categories = ['All Categories', 'Sofa', 'Chair', 'Table', 'Bed', 'Cabinet', 'Desk'];
-  const statusOptions = ['All Status', 'Active', 'Inactive'];
+  const statusOptions = ['All Status', 'Active', 'Inactive', 'Archived'];
 
   return (
     <div className="bg-surface border border-border rounded-lg p-4 space-y-4">

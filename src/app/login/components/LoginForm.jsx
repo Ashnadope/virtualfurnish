@@ -68,13 +68,9 @@ export default function LoginForm() {
           ? 'Unable to connect to the server. Please check your internet connection and try again.'
           : (error.message || 'Invalid email or password')
       });
-      setIsLoading(false);
-    } else {
-      // Don't manually redirect - let useEffect handle it when user state updates
-      // The auth state listener will trigger the redirect automatically
-      // Just wait a moment for the state to update
-      await new Promise(resolve => setTimeout(resolve, 500));
     }
+    
+    setIsLoading(false);
   };
 
   return (

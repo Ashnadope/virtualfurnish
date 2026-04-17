@@ -14,8 +14,8 @@ export const metadata = {
 };
 
 export default async function ProductManagementPage() {
-  // Fetch products from database
-  const { data: products = [], error } = await productService.getAllProducts();
+  // Fetch all products (including inactive and archived) for admin view
+  const { data: products = [], error } = await productService.getAllProductsAdmin();
 
   if (error) {
     console.error('Error fetching products:', error);
@@ -31,7 +31,7 @@ export default async function ProductManagementPage() {
       ? Math.min(...product.variants.map(v => parseFloat(v.price || 0)))
       : (product.basePrice ?? 0),
     stock: product.variants?.reduce((total, v) => total + (v.stockQuantity || 0), 0) || 0,
-    status: product.isActive ? 'active' : 'inactive',
+    status: product.isArchived ? 'archived' : product.isActive ? 'active' : 'inactive',
     description: product.description,
     image: product.variants?.[0]?.imageUrl || product.imageUrl || null,
     imageAlt: product.imageAlt,

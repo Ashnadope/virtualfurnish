@@ -235,6 +235,9 @@ export default function OrderCard({
                 {order?.shippingAddress?.address_line_2 && (
                   <p>{order?.shippingAddress?.address_line_2}</p>
                 )}
+                {order?.shippingAddress?.barangay && (
+                  <p>Brgy. {order?.shippingAddress?.barangay}</p>
+                )}
                 <p>
                   {order?.shippingAddress?.city}, {order?.shippingAddress?.state} {order?.shippingAddress?.postal_code}
                 </p>

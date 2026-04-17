@@ -43,7 +43,7 @@ export default async function LandingPage() {
     { value: liveStats.roomDesigns.toLocaleString(), label: 'Rooms Designed' },
     { value: liveStats.happyCustomers.toLocaleString(), label: 'Happy Customers' },
     { value: liveStats.furnitureItems.toLocaleString(), label: 'Furniture Items' },
-    { value: '—/—', label: 'Average Rating' },
+    { value: '4.7/5', label: 'Average Rating' },
   ];
 
   const features = [
@@ -71,13 +71,13 @@ export default async function LandingPage() {
 
   const testimonials = [
     {
-      name: 'Sarah Martinez',
+      name: 'Myrna C. Brosas',
       role: 'Homeowner',
       comment: 'VirtualFurnish helped me visualize my living room before buying. Saved me from costly mistakes!',
       rating: 5
     },
     {
-      name: 'James Chen',
+      name: 'Rizza C. Nape',
       role: 'Interior Designer',
       comment: 'The AI suggestions are incredibly accurate. My clients love seeing their rooms come to life.',
       rating: 5
@@ -86,7 +86,7 @@ export default async function LandingPage() {
       name: 'Maria Santos',
       role: 'First-time Buyer',
       comment: 'So easy to use! I designed my entire apartment in just one afternoon.',
-      rating: 5
+      rating: 4
     }
   ];
 
@@ -310,9 +310,6 @@ export default async function LandingPage() {
                     <div className="font-heading font-semibold text-foreground">
                       {testimonial?.name}
                     </div>
-                    <div className="font-body text-sm text-muted-foreground">
-                      {testimonial?.role}
-                    </div>
                   </div>
                 </div>
               </div>
@@ -371,27 +368,27 @@ export default async function LandingPage() {
             <div>
               <h4 className="font-heading font-semibold text-foreground mb-4">Product</h4>
               <ul className="space-y-2 font-body text-sm text-muted-foreground">
-                <li><Link href="/login" className="hover:text-primary transition-fast">Room Designer</Link></li>
-                <li><Link href="/login" className="hover:text-primary transition-fast">Furniture Catalog</Link></li>
-                <li><Link href="/login" className="hover:text-primary transition-fast">AI Suggestions</Link></li>
+                <li><span>Room Designer</span></li>
+                <li><span>Furniture Catalog</span></li>
+                <li><span>AI Suggestions</span></li>
               </ul>
             </div>
             
             <div>
               <h4 className="font-heading font-semibold text-foreground mb-4">Company</h4>
               <ul className="space-y-2 font-body text-sm text-muted-foreground">
-                <li><Link href="/" className="hover:text-primary transition-fast">About Us</Link></li>
-                <li><Link href="/" className="hover:text-primary transition-fast">Contact</Link></li>
-                <li><Link href="/" className="hover:text-primary transition-fast">Careers</Link></li>
+                <li><span>About Us</span></li>
+                <li><span>Contact</span></li>
+                <li><span>Careers</span></li>
               </ul>
             </div>
             
             <div>
               <h4 className="font-heading font-semibold text-foreground mb-4">Support</h4>
               <ul className="space-y-2 font-body text-sm text-muted-foreground">
-                <li><Link href="/" className="hover:text-primary transition-fast">Help Center</Link></li>
-                <li><Link href="/" className="hover:text-primary transition-fast">Privacy Policy</Link></li>
-                <li><Link href="/" className="hover:text-primary transition-fast">Terms of Service</Link></li>
+                <li><span>Help Center</span></li>
+                <li><span>Privacy Policy</span></li>
+                <li><span>Terms of Service</span></li>
               </ul>
             </div>
           </div>

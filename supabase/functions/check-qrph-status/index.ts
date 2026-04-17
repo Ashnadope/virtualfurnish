@@ -47,7 +47,7 @@ serve(async (req) => {
     // Fetch order
     const { data: order, error: orderErr } = await supabaseClient
       .from('orders')
-      .select('id, order_number, user_id, paymongo_payment_intent_id, payment_status, total_amount')
+      .select('id, order_number, user_id, paymongo_payment_intent_id, payment_status, total_amount, stock_allocated')
       .eq('id', orderId)
       .eq('user_id', user.id)
       .single();
@@ -131,6 +131,19 @@ serve(async (req) => {
           updated_at: new Date().toISOString(),
         })
         .eq('id', order.id);
+
+      // Guard: skip stock deduction if already allocated (idempotency)
+      if (order.stock_allocated) {
+        console.log('Stock already allocated for order', order.id, '— skipping deduction');
+        return new Response(
+          JSON.stringify({
+            status: mappedStatus,
+            orderId: order.id,
+            orderNumber: order.order_number,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
 
       // Update payment_transaction
       await supabaseClient

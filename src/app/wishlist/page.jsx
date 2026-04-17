@@ -346,7 +346,7 @@ function WishlistCard({ item, isSelected, onToggleSelect, onRemove, onAddToCart,
   const variantColor = variant?.color || null;
 
   return (
-    <div className="bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+    <div className="bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow flex flex-col">
       {/* Selection Checkbox */}
       <div className="absolute top-4 left-4 z-10">
         <input
@@ -377,7 +377,7 @@ function WishlistCard({ item, isSelected, onToggleSelect, onRemove, onAddToCart,
         )}
       </div>
       {/* Product Details */}
-      <div className="p-4">
+      <div className="p-4 flex flex-col flex-1">
         <div className="mb-2">
           <span className="text-xs text-gray-500 uppercase">{product?.category || 'Furniture'}</span>
           {product?.brand && (
@@ -394,7 +394,7 @@ function WishlistCard({ item, isSelected, onToggleSelect, onRemove, onAddToCart,
         </p>
 
         {/* Action Buttons */}
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 mt-auto">
           <button
             onClick={onAddToCart}
             disabled={!isAvailable || isAddingToCart}

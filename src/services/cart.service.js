@@ -87,13 +87,16 @@ export const cartService = {
     try {
       const supabase = createClient();
       
-      const { data: { user }, error: authError } = await supabase?.auth?.getUser();
+      // Use getSession() instead of getUser() to avoid acquiring the auth token
+      // lock on every poll. getUser() makes a network request + lock acquisition,
+      // which can deadlock when multiple polls stack up after browser idle.
+      const { data: { session }, error: authError } = await supabase?.auth?.getSession();
       
-      if (authError || !user) {
+      if (authError || !session?.user) {
         return { count: 0, error: null, isAuthenticated: false };
       }
 
-      const { count, error } = await supabase?.from('cart_items')?.select('*', { count: 'exact', head: true })?.eq('user_id', user?.id);
+      const { count, error } = await supabase?.from('cart_items')?.select('*', { count: 'exact', head: true })?.eq('user_id', session.user.id);
 
       if (error) throw error;
 
@@ -114,11 +117,11 @@ export const cartService = {
       
       // Run auth check and stock check in parallel to avoid sequential delays
       const [authResult, stockResult] = await Promise.all([
-        supabase.auth.getSession(),
+        supabase.auth.getUser(),
         this.getAvailableStock({ variantId, productId }),
       ]);
 
-      const user = authResult.data?.session?.user;
+      const user = authResult.data?.user;
       if (authResult.error || !user) {
         throw new Error('User not authenticated');
       }

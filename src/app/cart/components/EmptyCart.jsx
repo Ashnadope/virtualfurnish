@@ -1,9 +1,22 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
+import { productService } from '@/services/product.service';
 
 export default function EmptyCart() {
+  const [recentProducts, setRecentProducts] = useState([]);
+
+  useEffect(() => {
+    productService.getAllProducts().then(({ data }) => {
+      if (data?.length) {
+        // Products are already sorted by created_at desc from the service
+        setRecentProducts(data.slice(0, 3));
+      }
+    }).catch(() => {});
+  }, []);
+
   return (
     <div className="flex flex-col items-center justify-center min-h-[500px] text-center">
       <div className="w-24 h-24 bg-muted rounded-full flex items-center justify-center mb-6">
@@ -21,7 +34,7 @@ export default function EmptyCart() {
 
       <div className="flex flex-col sm:flex-row gap-4">
         <Link
-          href="/customer-dashboard"
+          href="/furniture-catalog"
           className="px-6 py-3 bg-primary text-primary-foreground font-body font-medium rounded-md hover:bg-primary/90 transition-fast inline-flex items-center justify-center gap-2">
 
           <Icon name="HomeIcon" size={20} variant="outline" />
@@ -37,51 +50,44 @@ export default function EmptyCart() {
         </Link>
       </div>
 
-      {/* Recent Recommendations */}
+      {/* Recent Products */}
+      {recentProducts.length > 0 && (
       <div className="mt-12 w-full max-w-4xl">
         <h3 className="font-heading text-lg font-semibold text-foreground mb-4 text-left">
           You might like
         </h3>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[
-          {
-            name: 'Modern Sofa',
-            price: 45999,
-            image: "https://images.unsplash.com/photo-1634497885778-152eb6fd543d",
-            alt: 'Modern gray sofa with wooden legs'
-          },
-          {
-            name: 'Dining Table',
-            price: 32999,
-            image: "https://images.unsplash.com/photo-1691435212739-41971399e0a8",
-            alt: 'Wooden dining table with six chairs'
-          },
-          {
-            name: 'Queen Bed Frame',
-            price: 15999,
-            image: "https://img.rocket.new/generatedImages/rocket_gen_img_19a59142e-1764752238242.png",
-            alt: 'Upholstered queen bed frame in beige'
-          }]?.
-          map((product, index) =>
-          <div key={index} className="bg-surface border border-border rounded-lg p-4 hover:shadow-sm transition-fast">
-              <div className="aspect-square bg-muted rounded-md mb-3 overflow-hidden">
-                <img
-                src={product?.image}
-                alt={product?.alt}
-                className="w-full h-full object-cover" />
-
-              </div>
-              <h4 className="font-heading font-medium text-foreground mb-1">
-                {product?.name}
-              </h4>
-              <p className="font-body text-sm text-primary font-semibold">
-                ₱{product?.price?.toLocaleString('en-PH')}
-              </p>
-            </div>
-          )}
+          {recentProducts.map((product) => {
+            const firstVariant = product?.variants?.[0];
+            const imageUrl = firstVariant?.imageUrl || product?.imageUrl;
+            const price = firstVariant?.price ?? product?.basePrice ?? 0;
+            return (
+              <Link key={product.id} href={`/product/${product.id}`} className="bg-surface border border-border rounded-lg p-4 hover:shadow-sm transition-fast">
+                <div className="aspect-square bg-muted rounded-md mb-3 overflow-hidden">
+                  {imageUrl ? (
+                    <img
+                      src={imageUrl}
+                      alt={product?.name}
+                      className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                      <Icon name="PhotoIcon" size={40} variant="outline" />
+                    </div>
+                  )}
+                </div>
+                <h4 className="font-heading font-medium text-foreground mb-1">
+                  {product?.name}
+                </h4>
+                <p className="font-body text-sm text-primary font-semibold">
+                  ₱{parseFloat(price).toLocaleString('en-PH')}
+                </p>
+              </Link>
+            );
+          })}
         </div>
       </div>
+      )}
     </div>);
 
 }

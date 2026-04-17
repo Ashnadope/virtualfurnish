@@ -1,0 +1,20 @@
+[functions.confirm-payment]
+verify_jwt = false
+
+[functions.process-gcash-payment]
+verify_jwt = false
+
+[functions.check-qrph-status]
+verify_jwt = false
+
+[functions.create-payment-intent]
+verify_jwt = false
+
+[functions.process-qrph-payment]
+verify_jwt = false
+
+[functions.process-refund]
+verify_jwt = false
+
+[functions.swift-task]
+verify_jwt = false

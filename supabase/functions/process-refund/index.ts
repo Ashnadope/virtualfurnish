@@ -52,7 +52,7 @@ serve(async (req) => {
     // Fetch the payment transaction for this order
     const { data: txn, error: txnErr } = await supabase
       .from('payment_transactions')
-      .select('id, gateway, payment_intent_id, stripe_charge_id, gcash_reference_id, paymongo_payment_intent_id, amount, status, metadata')
+      .select('id, gateway, gateway_transaction_id, payment_intent_id, stripe_charge_id, gcash_reference_id, paymongo_payment_intent_id, amount, status, metadata')
       .eq('order_id', orderId)
       .eq('transaction_type', 'payment')
       .order('created_at', { ascending: false })
@@ -180,7 +180,7 @@ serve(async (req) => {
       status: refundStatus === 'refunded' ? 'succeeded' : 'pending',
       transaction_type: 'refund',
       gateway: txn.gateway,
-      gateway_transaction_id: refundMeta.stripe_refund_id as string ?? null,
+      gateway_transaction_id: (refundMeta.stripe_refund_id ?? refundMeta.paymongo_refund_id ?? null) as string,
       metadata: refundMeta,
     });
 

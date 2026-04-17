@@ -53,8 +53,8 @@ export function exportAnalyticsCSV(data, dateRange) {
   (data.metrics || []).forEach(m => push(m.title, m.value, m.change));
   blank();
 
-  push('MONTHLY SALES TRENDS');
-  push('Month', 'Revenue (PHP)', 'Orders');
+  push(data.salesChartTitle || 'SALES TRENDS');
+  push('Period', 'Revenue (PHP)', 'Orders');
   (data.salesData || []).forEach(s => push(s.month, s.revenue, s.orders));
   blank();
 
@@ -120,8 +120,8 @@ export function exportAnalyticsExcel(data, dateRange) {
         (data.metrics || []).map(m => [m.title, m.value, m.change])
       )}
 
-      ${section('Monthly Sales Trends',
-        ['Month', 'Revenue (PHP)', 'Orders'],
+      ${section(data.salesChartTitle || 'Sales Trends',
+        ['Period', 'Revenue (PHP)', 'Orders'],
         (data.salesData || []).map(s => [s.month, s.revenue, s.orders])
       )}
 
@@ -228,9 +228,9 @@ export async function exportAnalyticsPDF(data, dateRange) {
   (data.metrics || []).forEach(m => tableRow([m.title, m.value, m.change]));
   y += 4;
 
-  // ── Monthly Sales ──
-  sectionHeader('MONTHLY SALES TRENDS');
-  tableRow(['Month', 'Revenue (PHP)', 'Orders'], true);
+  // ── Sales ──
+  sectionHeader(data.salesChartTitle || 'SALES TRENDS');
+  tableRow(['Period', 'Revenue (PHP)', 'Orders'], true);
   (data.salesData || []).forEach(s => tableRow([s.month, String(s.revenue), String(s.orders)]));
   y += 4;
 

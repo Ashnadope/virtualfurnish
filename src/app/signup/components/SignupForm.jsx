@@ -93,17 +93,27 @@ export default function SignupForm() {
 
     // If session is null, Supabase requires email confirmation first.
     // The user_profiles row will be created automatically on first login.
+    console.log('[signup] signUp response data:', JSON.stringify({ session: !!data?.session, user: !!data?.user, identities: data?.user?.identities?.length }));
     if (!data?.session) {
+      // Check if this is a duplicate signup (user exists but no session)
+      if (data?.user?.identities?.length === 0) {
+        setErrors({ submit: 'An account with this email already exists. Please log in instead.' });
+        setIsLoading(false);
+        return;
+      }
+      setIsLoading(false);
       router.push('/login?message=Account created! Please check your email to confirm before signing in.');
       return;
     }
 
-    // Session exists (email confirmation disabled) — create profile immediately
+    // Session exists (email confirmation disabled) — ensure profile exists.
+    // Use upsert because AuthContext's onAuthStateChange may have already
+    // created the row by the time we get here (race condition).
     if (data?.user?.id) {
       try {
         const { error: profileError } = await supabase
           .from('user_profiles')
-          .insert([{
+          .upsert([{
             id: data.user.id,
             email: formData.email,
             first_name: formData.firstName,
@@ -112,23 +122,19 @@ export default function SignupForm() {
             total_orders: 0,
             total_spent: 0,
             loyalty_points: 0
-          }]);
+          }], { onConflict: 'id' });
 
         if (profileError) {
           console.error('Profile creation error:', profileError);
-          setErrors({ submit: 'Account created but profile setup failed. Please contact support.' });
-          setIsLoading(false);
-          return;
+          // Don't block — AuthContext will also try to create the profile
         }
       } catch (err) {
-        console.error('Profile insert error:', err);
-        setErrors({ submit: 'Account created but profile setup failed. Please contact support.' });
-        setIsLoading(false);
-        return;
+        console.error('Profile upsert error:', err);
       }
     }
 
     // Success - redirect to login
+    setIsLoading(false);
     router.push('/login?message=Signup successful! Please log in.');
   };
 

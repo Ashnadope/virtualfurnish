@@ -61,6 +61,7 @@ export async function fetchAnalyticsData(range = '30days') {
     { data: chartOrders },
     { data: geoOrders },
     { data: products },
+    { data: prevOrderItemsRaw },
     { data: allSucceededOrderUsers },
     { data: variantImages },
   ] = await Promise.all([
@@ -83,17 +84,24 @@ export async function fetchAnalyticsData(range = '30days') {
     // All-time total (for headline count — ignores date filter intentionally)
     supabase.from('room_designs').select('id', { count: 'exact', head: true }),
 
-    // Last 12 months for sales chart (always full year regardless of range)
+    // Sales chart — scoped to the selected date range
     supabase.from('orders').select('total_amount, created_at')
       .eq('payment_status', 'succeeded')
-      .gte('created_at', new Date(now.getFullYear() - 1, now.getMonth(), 1).toISOString()),
+      .gte('created_at', start.toISOString()),
 
     supabase.from('orders').select('shipping_address, total_amount')
       .eq('payment_status', 'succeeded').gte('created_at', start.toISOString()),
 
     supabase.from('products').select('id, name, image_url, category'),
 
-    supabase.from('orders').select('user_id').eq('payment_status', 'succeeded'),
+    // Previous-period order items for product trend comparison
+    supabase.from('order_items')
+      .select('product_id, name, quantity, total, orders!inner(payment_status, created_at)')
+      .eq('orders.payment_status', 'succeeded')
+      .gte('orders.created_at', prev.toISOString())
+      .lt('orders.created_at', prevEnd.toISOString()),
+
+    supabase.from('orders').select('user_id, created_at').eq('payment_status', 'succeeded'),
 
     // Variant images — first image per product (active variants with an image set)
     supabase.from('product_variants')
@@ -139,20 +147,77 @@ export async function fetchAnalyticsData(range = '30days') {
     },
   ];
 
-  // ── Sales chart — monthly buckets (last 12 months) ────────────────────────
+  // ── Sales chart — dynamic bucketing based on selected range ────────────────
   const monthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const buckets = {};
-  for (let i = 11; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    buckets[key] = { month: monthLabels[d.getMonth()], revenue: 0, orders: 0 };
+  let salesData;
+  let salesChartTitle;
+
+  if (range === '7days') {
+    // Daily buckets for 7 days
+    salesChartTitle = 'Daily Sales (Last 7 Days)';
+    const buckets = {};
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now); d.setDate(d.getDate() - i); d.setHours(0,0,0,0);
+      const key = d.toISOString().slice(0, 10);
+      const label = d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+      buckets[key] = { month: label, revenue: 0, orders: 0 };
+    }
+    for (const order of (chartOrders ?? [])) {
+      const key = new Date(order.created_at).toISOString().slice(0, 10);
+      if (buckets[key]) { buckets[key].revenue += parseFloat(order.total_amount); buckets[key].orders++; }
+    }
+    salesData = Object.values(buckets).map(b => ({ ...b, revenue: Math.round(b.revenue) }));
+
+  } else if (range === '30days') {
+    // Weekly buckets for 30 days (~4-5 weeks)
+    salesChartTitle = 'Weekly Sales (Last 30 Days)';
+    const weekBuckets = [];
+    for (let i = 4; i >= 0; i--) {
+      const wEnd = new Date(now); wEnd.setDate(wEnd.getDate() - i * 7); wEnd.setHours(23,59,59,999);
+      const wStart = new Date(wEnd); wStart.setDate(wStart.getDate() - 6); wStart.setHours(0,0,0,0);
+      if (wStart < start) wStart.setTime(start.getTime());
+      const label = `${wStart.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })} – ${wEnd.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}`;
+      weekBuckets.push({ label, start: wStart, end: wEnd, revenue: 0, orders: 0 });
+    }
+    for (const order of (chartOrders ?? [])) {
+      const d = new Date(order.created_at);
+      for (const wb of weekBuckets) {
+        if (d >= wb.start && d <= wb.end) { wb.revenue += parseFloat(order.total_amount); wb.orders++; break; }
+      }
+    }
+    salesData = weekBuckets.map(wb => ({ month: wb.label, revenue: Math.round(wb.revenue), orders: wb.orders }));
+
+  } else if (range === '90days') {
+    // Monthly buckets for 3 months
+    salesChartTitle = 'Monthly Sales (Last 90 Days)';
+    const buckets = {};
+    for (let i = 2; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      buckets[key] = { month: monthLabels[d.getMonth()], revenue: 0, orders: 0 };
+    }
+    for (const order of (chartOrders ?? [])) {
+      const d = new Date(order.created_at);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (buckets[key]) { buckets[key].revenue += parseFloat(order.total_amount); buckets[key].orders++; }
+    }
+    salesData = Object.values(buckets).map(b => ({ ...b, revenue: Math.round(b.revenue) }));
+
+  } else {
+    // Monthly buckets for the full year
+    salesChartTitle = `Monthly Sales (${now.getFullYear()})`;
+    const buckets = {};
+    for (let m = 0; m <= now.getMonth(); m++) {
+      const key = `${now.getFullYear()}-${String(m + 1).padStart(2, '0')}`;
+      buckets[key] = { month: monthLabels[m], revenue: 0, orders: 0 };
+    }
+    for (const order of (chartOrders ?? [])) {
+      const d = new Date(order.created_at);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (buckets[key]) { buckets[key].revenue += parseFloat(order.total_amount); buckets[key].orders++; }
+    }
+    salesData = Object.values(buckets).map(b => ({ ...b, revenue: Math.round(b.revenue) }));
   }
-  for (const order of (chartOrders ?? [])) {
-    const d = new Date(order.created_at);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    if (buckets[key]) { buckets[key].revenue += parseFloat(order.total_amount); buckets[key].orders++; }
-  }
-  const salesData = Object.values(buckets).map(b => ({ ...b, revenue: Math.round(b.revenue) }));
 
   // ── Top products ──────────────────────────────────────────────────────────
   const productMap = {};
@@ -162,6 +227,16 @@ export async function fetchAnalyticsData(range = '30days') {
     productMap[key].unitsSold += item.quantity;
     productMap[key].revenue  += parseFloat(item.total);
   }
+
+  // Previous-period product sales for trend comparison
+  const prevProductMap = {};
+  for (const item of (prevOrderItemsRaw ?? [])) {
+    const key = item.product_id || item.name;
+    if (!prevProductMap[key]) prevProductMap[key] = { unitsSold: 0, revenue: 0 };
+    prevProductMap[key].unitsSold += item.quantity;
+    prevProductMap[key].revenue  += parseFloat(item.total);
+  }
+
   const productLookup = {};
   for (const p of (products ?? [])) productLookup[p.id] = p;
 
@@ -180,31 +255,45 @@ export async function fetchAnalyticsData(range = '30days') {
       const prod = productLookup[p.product_id];
       // Prefer variant image → fall back to product-level image (seeded data)
       const image = variantImageLookup[p.product_id] || prod?.image_url || null;
+      const prevP = prevProductMap[p.product_id || p.name];
+      const prevUnits = prevP?.unitsSold ?? 0;
+      const trend = p.unitsSold > prevUnits ? 'up' : p.unitsSold < prevUnits ? 'down' : 'stable';
+      const trendValue = pctChange(p.unitsSold, prevUnits);
       return {
         id: p.id, name: p.name,
         category: prod?.category || '—',
         unitsSold: p.unitsSold,
         revenue: formatNumber(p.revenue),
         image,
-        trend: 'stable', trendValue: '',
+        trend, trendValue,
       };
     });
 
-  // ── Customer segments ─────────────────────────────────────────────────────
-  const totalOrdersPerUser = {};
-  for (const o of (allSucceededOrderUsers ?? [])) {
-    if (o.user_id) totalOrdersPerUser[o.user_id] = (totalOrdersPerUser[o.user_id] || 0) + 1;
+  // ── Customer segments (period-scoped) ──────────────────────────────────────
+  // Count orders per user within the selected period
+  const periodOrdersPerUser = {};
+  for (const o of (currentOrders ?? [])) {
+    if (o.user_id) periodOrdersPerUser[o.user_id] = (periodOrdersPerUser[o.user_id] || 0) + 1;
   }
-  const totalCustomers   = (allCustomers ?? []).length;
-  const returningCount   = Object.values(totalOrdersPerUser).filter(n => n >= 2).length;
-  const oneTimeCount     = Object.values(totalOrdersPerUser).filter(n => n === 1).length;
-  const inactiveCount    = Math.max(0, totalCustomers - Object.keys(totalOrdersPerUser).length);
+  // Determine which users also had orders before this period (returning)
+  const usersWithPriorOrders = new Set();
+  for (const o of (allSucceededOrderUsers ?? [])) {
+    if (o.user_id && o.created_at && new Date(o.created_at) < start) {
+      usersWithPriorOrders.add(o.user_id);
+    }
+  }
+  const periodBuyers = Object.keys(periodOrdersPerUser);
+  const returningCount = periodBuyers.filter(uid => usersWithPriorOrders.has(uid)).length;
+  const firstTimeBuyers = periodBuyers.filter(uid => !usersWithPriorOrders.has(uid)).length;
+  const totalCustomers = (allCustomers ?? []).length;
+  const customersWithAnyOrder = new Set((allSucceededOrderUsers ?? []).map(o => o.user_id).filter(Boolean));
+  const inactiveCount = Math.max(0, totalCustomers - customersWithAnyOrder.size);
 
   const customerSegments = [
-    { name: 'New Customers',     value: Math.max(0, newCustomersInPeriod) },
-    { name: 'Returning Customers', value: Math.max(0, returningCount) },
-    { name: 'One-Time Buyers',   value: Math.max(0, oneTimeCount) },
-    { name: 'No Orders Yet',     value: Math.max(0, inactiveCount) },
+    { name: 'New Customers',       value: Math.max(0, newCustomersInPeriod) },
+    { name: 'Returning Buyers',    value: Math.max(0, returningCount) },
+    { name: 'First-Time Buyers',   value: Math.max(0, firstTimeBuyers) },
+    { name: 'No Orders Yet',       value: Math.max(0, inactiveCount) },
   ];
 
   // ── Room designer stats ───────────────────────────────────────────────────
@@ -263,5 +352,5 @@ export async function fetchAnalyticsData(range = '30days') {
       percentage: totalGeoOrders > 0 ? ((d.orders / totalGeoOrders) * 100).toFixed(1) : '0',
     }));
 
-  return { metrics, salesData, topProducts, customerSegments, roomDesignerStats, geographicData };
+  return { metrics, salesData, salesChartTitle, topProducts, customerSegments, roomDesignerStats, geographicData };
 }

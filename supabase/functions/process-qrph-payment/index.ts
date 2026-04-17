@@ -319,6 +319,7 @@ serve(async (req) => {
       amount: orderData.total,
       currency: 'PHP',
       status: 'pending',
+      transaction_type: 'payment',
       gateway: 'paymongo',
       metadata: {
         payment_method_type: 'qrph',

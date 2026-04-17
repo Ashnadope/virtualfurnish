@@ -68,6 +68,7 @@ function PaymentFormInner({
           })
 
           const confirmationResult = await confirmationResponse.json().catch(() => ({}))
+          console.log('[StripePaymentForm] confirm-payment response:', JSON.stringify(confirmationResult))
 
           if (!confirmationResponse.ok) {
             throw new Error(confirmationResult?.error || 'Failed to confirm payment')

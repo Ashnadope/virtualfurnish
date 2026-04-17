@@ -14,6 +14,8 @@ const EMPTY_VARIANT_FORM = {
   weight: '',
   image: '',
   selectedFile: null,
+  displayImages: [],
+  displayImageFiles: [],
 };
 
 const EMPTY_FORM_DATA = {
@@ -57,6 +59,8 @@ export default function ProductFormModal({ isOpen, onClose, onSave, product }) {
             weight: v.weight || '',
             image: v.imageUrl || '',
             selectedFile: null,
+            displayImages: v.displayImages || [],
+            displayImageFiles: [],
           }))
         );
         setVariantForm(EMPTY_VARIANT_FORM);
@@ -109,6 +113,33 @@ export default function ProductFormModal({ isOpen, onClose, onSave, product }) {
   const clearVariantImage = () => {
     setVariantImagePreview('');
     setVariantForm(prev => ({ ...prev, selectedFile: null, image: '' }));
+  };
+
+  const handleDisplayImageUpload = (e) => {
+    const files = Array.from(e?.target?.files || []);
+    if (!files.length) return;
+    const validFiles = files.filter(f => ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'].includes(f.type) && f.size <= 5 * 1024 * 1024);
+    if (validFiles.length === 0) return;
+    setVariantForm(prev => ({
+      ...prev,
+      displayImageFiles: [...(prev.displayImageFiles || []), ...validFiles],
+    }));
+  };
+
+  const removeDisplayImage = (index, isExisting) => {
+    if (isExisting) {
+      setVariantForm(prev => ({
+        ...prev,
+        displayImages: (prev.displayImages || []).filter((_, i) => i !== index),
+      }));
+    } else {
+      const existingCount = (variantForm.displayImages || []).length;
+      const fileIndex = index - existingCount;
+      setVariantForm(prev => ({
+        ...prev,
+        displayImageFiles: (prev.displayImageFiles || []).filter((_, i) => i !== fileIndex),
+      }));
+    }
   };
 
   const addOrUpdateVariant = () => {
@@ -173,6 +204,8 @@ export default function ProductFormModal({ isOpen, onClose, onSave, product }) {
       const uploadedVariants = [];
 
       for (const variant of variants) {
+        let variantImageUrl = variant.image;
+
         if (variant.selectedFile) {
           // Get a server-issued signed upload URL (avoids browser Supabase client session)
           const ext = variant.selectedFile.name.split('.').pop();
@@ -195,10 +228,42 @@ export default function ProductFormModal({ isOpen, onClose, onSave, product }) {
           });
           if (!uploadRes.ok) throw new Error('Image upload failed');
 
-          uploadedVariants.push({ ...variant, image: publicUrl, selectedFile: undefined });
-        } else {
-          uploadedVariants.push({ ...variant, selectedFile: undefined });
+          variantImageUrl = publicUrl;
         }
+
+        // Upload new display image files
+        const existingDisplayImages = variant.displayImages || [];
+        const newDisplayFiles = variant.displayImageFiles || [];
+        const uploadedDisplayUrls = [...existingDisplayImages];
+
+        for (const file of newDisplayFiles) {
+          const ext = file.name.split('.').pop();
+          const urlRes = await fetch('/api/products/upload-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ext }),
+          });
+          if (!urlRes.ok) {
+            const { error } = await urlRes.json();
+            throw new Error(`Display image upload URL error: ${error}`);
+          }
+          const { signedUrl, publicUrl } = await urlRes.json();
+          const uploadRes = await fetch(signedUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': file.type || 'application/octet-stream' },
+            body: file,
+          });
+          if (!uploadRes.ok) throw new Error('Display image upload failed');
+          uploadedDisplayUrls.push(publicUrl);
+        }
+
+        uploadedVariants.push({
+          ...variant,
+          image: variantImageUrl,
+          selectedFile: undefined,
+          displayImages: uploadedDisplayUrls,
+          displayImageFiles: undefined,
+        });
       }
 
       await onSave({ ...formData, id: product?.id, variants: uploadedVariants });
@@ -422,6 +487,52 @@ export default function ProductFormModal({ isOpen, onClose, onSave, product }) {
                     )}
                   </div>
                   {errors.variantImage && <p className="mt-1 text-xs text-error">{errors.variantImage}</p>}
+                </div>
+
+                {/* Display Images for Room Designer */}
+                <div>
+                  <label className="block font-body text-xs font-medium text-foreground mb-1">Display Images <span className="text-muted-foreground font-normal">(optional)</span></label>
+                  <p className="text-xs text-muted-foreground mb-2">Additional views shown in the virtual room designer. Users can switch between these on the canvas.</p>
+                  <div className="border-2 border-dashed border-border rounded-lg p-3">
+                    {/* Existing + pending display images */}
+                    {((variantForm.displayImages || []).length > 0 || (variantForm.displayImageFiles || []).length > 0) && (
+                      <div className="grid grid-cols-4 gap-2 mb-3">
+                        {(variantForm.displayImages || []).map((url, i) => (
+                          <div key={`existing-${i}`} className="relative group">
+                            <div className="aspect-square rounded-md overflow-hidden bg-muted">
+                              <AppImage src={url} alt={`Display ${i + 1}`} className="w-full h-full object-cover" />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeDisplayImage(i, true)}
+                              className="absolute -top-1 -right-1 w-5 h-5 bg-error text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-fast"
+                            >
+                              <Icon name="XMarkIcon" size={12} variant="outline" />
+                            </button>
+                          </div>
+                        ))}
+                        {(variantForm.displayImageFiles || []).map((file, i) => (
+                          <div key={`new-${i}`} className="relative group">
+                            <div className="aspect-square rounded-md overflow-hidden bg-muted">
+                              <img src={URL.createObjectURL(file)} alt={`New ${i + 1}`} className="w-full h-full object-cover" />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeDisplayImage((variantForm.displayImages || []).length + i, false)}
+                              className="absolute -top-1 -right-1 w-5 h-5 bg-error text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-fast"
+                            >
+                              <Icon name="XMarkIcon" size={12} variant="outline" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <label htmlFor="displayImageUpload" className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-xs font-medium cursor-pointer hover:bg-muted transition-fast">
+                      <Icon name="PlusIcon" size={14} variant="outline" />
+                      Add Images
+                    </label>
+                    <input id="displayImageUpload" type="file" accept="image/jpeg,image/png,image/jpg,image/webp" multiple onChange={handleDisplayImageUpload} className="hidden" />
+                  </div>
                 </div>
 
                 {/* Sub-form actions */}

@@ -21,8 +21,11 @@ export default function Header() {
     if (userRole !== 'customer' || !user?.id) return;
 
     let isMounted = true;
+    let refreshing = false;
 
     const refresh = async () => {
+      if (refreshing) return; // prevent stacking when browser resumes from idle
+      refreshing = true;
       try {
         const [{ count }, unread] = await Promise.all([
           cartService.getCartCount(),
@@ -32,7 +35,9 @@ export default function Header() {
           setCartCount(count ?? 0);
           setUnreadSupport(unread ?? 0);
         }
-      } catch { /* silent */ }
+      } catch { /* silent */ } finally {
+        refreshing = false;
+      }
     };
 
     refresh();

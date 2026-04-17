@@ -53,6 +53,7 @@ export const generateInvoice = (order) => {
       if (name) doc.text(name, 20, yPos + 6);
       doc.text(addr.address_line_1 || '', 20, yPos + 12);
       if (addr.address_line_2) { doc.text(addr.address_line_2, 20, yPos + 18); yPos += 6; }
+      if (addr.barangay) { doc.text(`Brgy. ${addr.barangay}`, 20, yPos + 18); yPos += 6; }
       doc.text(`${addr.city || ''}, ${addr.state || ''} ${addr.postal_code || ''}`.trim(), 20, yPos + 18);
       doc.text(addr.country || 'Philippines', 20, yPos + 24);
       if (addr.phone) doc.text(`Phone: ${addr.phone}`, 20, yPos + 30);
@@ -179,6 +180,7 @@ export const generateReceipt = (order) => {
       if (name) doc.text(name, 20, yPos + 6);
       doc.text(addr.address_line_1 || '', 20, yPos + 12);
       if (addr.address_line_2) { doc.text(addr.address_line_2, 20, yPos + 18); yPos += 6; }
+      if (addr.barangay) { doc.text(`Brgy. ${addr.barangay}`, 20, yPos + 18); yPos += 6; }
       doc.text(`${addr.city || ''}, ${addr.state || ''} ${addr.postal_code || ''}`.trim(), 20, yPos + 18);
       doc.text(addr.country || 'Philippines', 20, yPos + 24);
       if (addr.phone) doc.text(`Phone: ${addr.phone}`, 20, yPos + 30);

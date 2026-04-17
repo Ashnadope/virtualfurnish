@@ -8,11 +8,14 @@ export default function SaveDesignModal({ isOpen, onClose, onSave, currentName =
   const [name, setName] = useState(currentName || '');
   const [description, setDescription] = useState(currentDescription || '');
   const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     if (!isOpen) return;
     setName(currentName || '');
     setDescription(currentDescription || '');
+    setIsSaving(false);
+    setError(null);
   }, [isOpen, currentName, currentDescription]);
 
   if (!isOpen) return null;
@@ -26,11 +29,13 @@ export default function SaveDesignModal({ isOpen, onClose, onSave, currentName =
     }
 
     setIsSaving(true);
+    setError(null);
     try {
       await onSave({ name: name.trim(), description: description.trim() });
       onClose();
-    } catch (error) {
-      console.error('Error saving design:', error);
+    } catch (err) {
+      console.error('Error saving design:', err);
+      setError(err?.message || 'Failed to save design. Please try again.');
     } finally {
       setIsSaving(false);
     }
@@ -107,6 +112,18 @@ export default function SaveDesignModal({ isOpen, onClose, onSave, currentName =
                 {description.length}/500 characters
               </p>
             </div>
+
+            {/* Error Message */}
+            {error && (
+              <div className="bg-error/10 border border-error/20 rounded-lg p-3 flex gap-2">
+                <Icon 
+                  name="ExclamationTriangleIcon" 
+                  size={20} 
+                  className="text-error flex-shrink-0 mt-0.5" 
+                />
+                <p className="font-body text-xs text-error">{error}</p>
+              </div>
+            )}
 
             {/* Info Box */}
             <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 flex gap-2">

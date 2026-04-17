@@ -16,6 +16,7 @@ export default function CartInteractive({ initialItems = [] }) {
   const [error, setError] = useState(null);
   const [guardNotice, setGuardNotice] = useState(null);
   const [updating, setUpdating] = useState(false);
+  const [removingIds, setRemovingIds] = useState(new Set());
 
   const runOutOfStockGuard = async (itemsToCheck) => {
     const { movedCount, movedItemNames, error: guardError } = await cartService.moveOutOfStockItemsToWishlist(itemsToCheck);
@@ -67,30 +68,45 @@ export default function CartInteractive({ initialItems = [] }) {
 
   const handleUpdateQuantity = async (cartItemId, newQuantity) => {
     setUpdating(true);
+    try {
+      const { error: updateError } = await cartService?.updateQuantity(cartItemId, newQuantity);
 
-    const { error: updateError } = await cartService?.updateQuantity(cartItemId, newQuantity);
-
-    if (updateError) {
-      setError(updateError);
-    } else {
-      await loadCartItems();
+      if (updateError) {
+        setError(updateError);
+      } else {
+        await loadCartItems();
+      }
+    } catch (err) {
+      setError(err?.message || 'Failed to update quantity');
+    } finally {
+      setUpdating(false);
     }
-
-    setUpdating(false);
   };
 
   const handleRemoveItem = async (cartItemId) => {
-    setUpdating(true);
-    
-    const { error: removeError } = await cartService?.removeFromCart(cartItemId);
-    
-    if (removeError) {
-      setError(removeError);
-    } else {
-      await loadCartItems();
+    // Optimistically remove the item from state immediately
+    const previousItems = cartItems;
+    setCartItems(prev => prev.filter(item => item?.id !== cartItemId));
+    setRemovingIds(prev => new Set(prev).add(cartItemId));
+    try {
+      const { error: removeError } = await cartService?.removeFromCart(cartItemId);
+      
+      if (removeError) {
+        // Restore item on failure
+        setCartItems(previousItems);
+        setError(removeError);
+      }
+    } catch (err) {
+      // Restore item on failure
+      setCartItems(previousItems);
+      setError(err?.message || 'Failed to remove item');
+    } finally {
+      setRemovingIds(prev => {
+        const next = new Set(prev);
+        next.delete(cartItemId);
+        return next;
+      });
     }
-    
-    setUpdating(false);
   };
 
   const handleClearCart = async () => {
@@ -99,16 +115,19 @@ export default function CartInteractive({ initialItems = [] }) {
     }
     
     setUpdating(true);
-    
-    const { error: clearError } = await cartService?.clearCart();
-    
-    if (clearError) {
-      setError(clearError);
-    } else {
-      await loadCartItems();
+    try {
+      const { error: clearError } = await cartService?.clearCart();
+      
+      if (clearError) {
+        setError(clearError);
+      } else {
+        await loadCartItems();
+      }
+    } catch (err) {
+      setError(err?.message || 'Failed to clear cart');
+    } finally {
+      setUpdating(false);
     }
-    
-    setUpdating(false);
   };
 
   const calculateSubtotal = () => {
@@ -128,8 +147,8 @@ export default function CartInteractive({ initialItems = [] }) {
 
   const calculateTotal = () => {
     const subtotal = calculateSubtotal();
-    const shipping = subtotal > 0 ? 500 : 0; // ₱500 flat shipping
-    return subtotal + shipping;
+    const tax = subtotal * 0.12;
+    return subtotal + tax;
   };
 
   const handleCheckout = () => {
@@ -215,7 +234,7 @@ export default function CartInteractive({ initialItems = [] }) {
               item={item}
               onUpdateQuantity={handleUpdateQuantity}
               onRemove={handleRemoveItem}
-              disabled={updating}
+              disabled={updating || removingIds.has(item?.id)}
             />
           ))}
         </div>
@@ -224,7 +243,8 @@ export default function CartInteractive({ initialItems = [] }) {
         <div className="lg:col-span-1">
           <CartSummary
             subtotal={calculateSubtotal()}
-            shipping={cartItems?.length > 0 ? 500 : 0}
+            tax={calculateSubtotal() * 0.12}
+            shipping={null}
             total={calculateTotal()}
             itemCount={calculateTotalItems()}
             onCheckout={handleCheckout}

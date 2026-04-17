@@ -66,9 +66,10 @@ export default async function AdminDashboard() {
     // Low-stock variant count (for metrics card)
     supabase
       .from('product_variants')
-      .select('id', { count: 'exact', head: true })
+      .select('id, products!inner(id)', { count: 'exact', head: true })
       .lte('stock_quantity', 5)
-      .eq('is_active', true),
+      .eq('is_active', true)
+      .eq('products.is_archived', false),
 
     // New customers today
     supabase
@@ -110,9 +111,10 @@ export default async function AdminDashboard() {
     // Low-stock variants for the inventory alerts panel
     supabase
       .from('product_variants')
-      .select('id, product_id, name, sku, stock_quantity, image_url, products(id, name, image_url, image_alt)')
+      .select('id, product_id, name, sku, stock_quantity, image_url, products!inner(id, name, image_url, image_alt)')
       .lte('stock_quantity', 5)
       .eq('is_active', true)
+      .eq('products.is_archived', false)
       .order('stock_quantity', { ascending: true })
       .limit(6),
     // Recent unread customer messages for the activity feed

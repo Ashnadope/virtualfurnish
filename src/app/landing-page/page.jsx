@@ -9,12 +9,12 @@ import AppImage from '@/components/ui/AppImage';
 
 export default function LandingPage() {
   const router = useRouter();
-  const { user, userRole } = useAuth();
+  const { user, userRole, loading } = useAuth();
   const [stats, setStats] = useState([
     { value: '—', label: 'Rooms Designed' },
     { value: '—', label: 'Happy Customers' },
     { value: '—', label: 'Furniture Items' },
-    { value: '—/—', label: 'Average Rating' },
+    { value: '4.7/5', label: 'Average Rating' },
   ]);
 
   useEffect(() => {
@@ -27,7 +27,7 @@ export default function LandingPage() {
           { value: data.roomDesigns.toLocaleString(), label: 'Rooms Designed' },
           { value: data.happyCustomers.toLocaleString(), label: 'Happy Customers' },
           { value: data.furnitureItems.toLocaleString(), label: 'Furniture Items' },
-          { value: '—/—', label: 'Average Rating' },
+          { value: '4.7/5', label: 'Average Rating' },
         ]);
       } catch {
         // Keep fallback values
@@ -37,6 +37,7 @@ export default function LandingPage() {
   }, []);
 
   const handleGetStarted = () => {
+    if (loading) return;
     if (!user) {
       router.push('/login');
     } else if (userRole === 'admin') {
@@ -71,13 +72,13 @@ export default function LandingPage() {
 
   const testimonials = [
   {
-    name: 'Sarah Martinez',
+    name: 'Myrna C. Brosas',
     role: 'Homeowner',
     comment: 'VirtualFurnish helped me visualize my living room before buying. Saved me from costly mistakes!',
     rating: 5
   },
   {
-    name: 'James Chen',
+    name: 'Rizza C. Nape',
     role: 'Interior Designer',
     comment: 'The AI suggestions are incredibly accurate. My clients love seeing their rooms come to life.',
     rating: 5
@@ -86,7 +87,7 @@ export default function LandingPage() {
     name: 'Maria Santos',
     role: 'First-time Buyer',
     comment: 'So easy to use! I designed my entire apartment in just one afternoon.',
-    rating: 5
+    rating: 4
   }];
 
 
@@ -306,9 +307,6 @@ export default function LandingPage() {
                   <div>
                     <div className="font-heading font-semibold text-foreground">
                       {testimonial?.name}
-                    </div>
-                    <div className="font-body text-sm text-muted-foreground">
-                      {testimonial?.role}
                     </div>
                   </div>
                 </div>

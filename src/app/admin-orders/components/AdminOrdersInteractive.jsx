@@ -308,31 +308,55 @@ export default function AdminOrdersInteractive({ initialOrders = [] }) {
                       <tr>
                         <td colSpan="7" className="px-6 py-4 bg-muted">
                           <div className="space-y-4">
-                            {/* Refund Action — only when GCash refund is awaiting manual confirmation */}
+                            {/* Refund Action — when any payment gateway refund is awaiting confirmation */}
                             {order.paymentStatus === 'refund_pending' && (() => {
-                              const gcashTxn = order.transactions?.find(
-                                t => t.gateway === 'gcash' && t.status !== 'refund'
+                              const paymentTxn = order.transactions?.find(
+                                t => t.transactionType === 'payment' || (!t.transactionType && t.status !== 'refund')
                               );
-                              const gcashNumber = gcashTxn?.gcashNumber || order.shippingAddress?.phone;
+                              const gateway = paymentTxn?.gateway || order.paymentMethod;
+                              const gcashNumber = paymentTxn?.gcashNumber || order.shippingAddress?.phone;
+                              const isGcash = gateway === 'gcash';
+                              const isPaymongo = gateway === 'paymongo';
+                              const isStripe = gateway === 'stripe';
                               return (
                                 <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
                                   <div className="flex items-start justify-between gap-4">
                                     <div>
                                       <p className="font-semibold text-orange-900 text-sm mb-1">⚠ Refund Pending — Action Required</p>
-                                      <p className="text-orange-700 text-xs">
-                                        This order was cancelled and is awaiting a manual GCash refund.
-                                        Send <span className="font-bold">{formatCurrency(order.totalAmount)}</span> to the customer's GCash number, then click <strong>Mark as Refunded</strong> to confirm.
-                                      </p>
-                                      {gcashNumber && (
+                                      {isGcash && (
+                                        <p className="text-orange-700 text-xs">
+                                          This order was cancelled and is awaiting a manual GCash refund.
+                                          Send <span className="font-bold">{formatCurrency(order.totalAmount)}</span> to the customer&apos;s GCash number, then click <strong>Mark as Refunded</strong> to confirm.
+                                        </p>
+                                      )}
+                                      {isPaymongo && (
+                                        <p className="text-orange-700 text-xs">
+                                          QRPH refund via PayMongo failed or is still processing.
+                                          Verify the refund status in the PayMongo dashboard, then click <strong>Mark as Refunded</strong> once confirmed.
+                                        </p>
+                                      )}
+                                      {isStripe && (
+                                        <p className="text-orange-700 text-xs">
+                                          Stripe refund is still processing.
+                                          Check the Stripe dashboard for refund status, then click <strong>Mark as Refunded</strong> once confirmed.
+                                        </p>
+                                      )}
+                                      {!isGcash && !isPaymongo && !isStripe && (
+                                        <p className="text-orange-700 text-xs">
+                                          This order requires a manual refund of <span className="font-bold">{formatCurrency(order.totalAmount)}</span>.
+                                          Process the refund, then click <strong>Mark as Refunded</strong> to confirm.
+                                        </p>
+                                      )}
+                                      {isGcash && gcashNumber && (
                                         <p className="mt-2 text-orange-800 text-xs">
-                                          {gcashTxn?.gcashNumber
+                                          {paymentTxn?.gcashNumber
                                             ? <>GCash number used for payment: <span className="font-bold text-sm">{gcashNumber}</span></>
                                             : <>Shipping phone (GCash number not recorded): <span className="font-bold">{gcashNumber}</span></>
                                           }
                                         </p>
                                       )}
-                                      {gcashTxn?.gcashReferenceId && (
-                                        <p className="mt-1 text-orange-700 text-xs">Reference ID: <span className="font-mono">{gcashTxn.gcashReferenceId}</span></p>
+                                      {isGcash && paymentTxn?.gcashReferenceId && (
+                                        <p className="mt-1 text-orange-700 text-xs">Reference ID: <span className="font-mono">{paymentTxn.gcashReferenceId}</span></p>
                                       )}
                                     </div>
                                     <button
@@ -454,6 +478,9 @@ export default function AdminOrdersInteractive({ initialOrders = [] }) {
                                   )}
                                   {order.shippingAddress.address_line_2 && (
                                     <p>{order.shippingAddress.address_line_2}</p>
+                                  )}
+                                  {order.shippingAddress.barangay && (
+                                    <p>Brgy. {order.shippingAddress.barangay}</p>
                                   )}
                                   {(order.shippingAddress.city || order.shippingAddress.state || order.shippingAddress.postal_code) && (
                                     <p>{[order.shippingAddress.city, order.shippingAddress.state, order.shippingAddress.postal_code].filter(Boolean).join(', ')}</p>

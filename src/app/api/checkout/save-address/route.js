@@ -10,7 +10,7 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    const { addressId, firstName, lastName, address_line_1, address_line_2, city, state, postal_code, country, phone } = body;
+    const { addressId, firstName, lastName, address_line_1, address_line_2, city, state, barangay, postal_code, country, phone } = body;
 
     const addressRow = {
       ...(addressId ? { id: addressId } : {}),
@@ -22,6 +22,7 @@ export async function POST(request) {
       address_line_2: address_line_2 ?? null,
       city,
       state,
+      barangay: barangay ?? null,
       postal_code,
       country: country ?? 'PH',
       phone: phone ?? null,

@@ -3,7 +3,7 @@
 import PropTypes from 'prop-types';
 import Icon from '@/components/ui/AppIcon';
 
-export default function CartSummary({ subtotal, shipping, total, itemCount, onCheckout, disabled }) {
+export default function CartSummary({ subtotal, tax, shipping, total, itemCount, onCheckout, disabled }) {
   return (
     <div className="bg-surface border border-border rounded-lg p-6 sticky top-24">
       <h2 className="font-heading text-xl font-semibold text-foreground mb-4">
@@ -21,11 +21,20 @@ export default function CartSummary({ subtotal, shipping, total, itemCount, onCh
         </div>
 
         <div className="flex items-center justify-between font-body text-sm">
+          <span className="text-muted-foreground">VAT (12%)</span>
+          <span className="font-medium text-foreground">
+            ₱{(tax ?? 0)?.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between font-body text-sm">
           <span className="text-muted-foreground">Shipping</span>
           <span className="font-medium text-foreground">
-            {shipping > 0 
-              ? `₱${shipping?.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
-              : 'FREE'}
+            {shipping === null || shipping === undefined
+              ? <span className="text-xs text-muted-foreground italic">Calculated at checkout</span>
+              : shipping > 0 
+                ? `₱${shipping?.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
+                : 'FREE'}
           </span>
         </div>
 
@@ -68,7 +77,8 @@ export default function CartSummary({ subtotal, shipping, total, itemCount, onCh
 
 CartSummary.propTypes = {
   subtotal: PropTypes?.number?.isRequired,
-  shipping: PropTypes?.number?.isRequired,
+  tax: PropTypes?.number,
+  shipping: PropTypes?.number,
   total: PropTypes?.number?.isRequired,
   itemCount: PropTypes?.number?.isRequired,
   onCheckout: PropTypes?.func?.isRequired,

@@ -299,6 +299,7 @@ serve(async (req) => {
       amount: orderData.total,
       currency: orderData.currency || 'PHP',
       status: gcashPaymentResult.status,
+      transaction_type: 'payment',
       gateway: 'gcash',
       metadata: {
         gcash_number: orderData.gcash_number,
@@ -313,6 +314,28 @@ serve(async (req) => {
     }
 
     console.log('Payment transaction created')
+
+    // Guard: skip if stock was already deducted (idempotency)
+    const { data: freshOrder } = await supabaseClient
+      .from('orders')
+      .select('stock_allocated')
+      .eq('id', order.id)
+      .single();
+
+    if (freshOrder?.stock_allocated) {
+      console.log('Stock already allocated for order', order.id, '— skipping deduction');
+      return new Response(
+        JSON.stringify({
+          success: true,
+          orderId: order.id,
+          orderNumber: order.order_number,
+          referenceNumber: gcashReferenceId,
+          status: 'processing',
+          message: 'GCash payment processed successfully (stock already allocated)'
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Atomically decrement stock for the whole order.
     const { error: stockError } = await supabaseClient.rpc('deduct_order_stock_atomic', {

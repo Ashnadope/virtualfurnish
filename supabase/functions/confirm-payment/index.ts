@@ -90,16 +90,17 @@ serve(async (req) => {
 
     // Deduct stock atomically when payment succeeds
     if (paymentIntent.status === 'succeeded' && !order.stock_allocated) {
-      try {
-        await supabaseClient.rpc('deduct_order_stock_atomic', { p_order_id: order.id })
+      const { error: stockError } = await supabaseClient.rpc('deduct_order_stock_atomic', { p_order_id: order.id })
+
+      if (stockError) {
+        console.error('Stock deduction failed for order:', order.id, stockError.message)
+        // Don't fail the confirmation — stock error is logged and can be handled manually
+      } else {
         await supabaseClient
           .from('orders')
           .update({ stock_allocated: true })
           .eq('id', order.id)
         console.log('Stock deducted for order:', order.id)
-      } catch (stockErr: any) {
-        console.error('Stock deduction failed for order:', order.id, stockErr)
-        // Don't fail the confirmation — stock error is logged and can be handled manually
       }
     }
 

@@ -252,6 +252,7 @@ serve(async (req) => {
       amount: orderData.total,
       currency: orderData.currency || 'PHP',
       status: 'pending',
+      transaction_type: 'payment',
       gateway: 'stripe',
       gateway_transaction_id: null
     })

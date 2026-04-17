@@ -15,6 +15,7 @@ const CanvasArea = forwardRef(function CanvasArea({
   onFurnitureMove,
   onFurnitureRotate,
   onFurnitureScale,
+  onFurnitureImageChange,
   onFurnitureDelete,
   onAddFurniture,
   onCanvasDeselect,
@@ -538,7 +539,6 @@ const CanvasArea = forwardRef(function CanvasArea({
                     left: `${furniture?.position?.x}%`,
                     top: `${furniture?.position?.y}%`,
                     width: `${furniture?.scale * 100}px`,
-                    height: `${furniture?.scale * 80}px`,
                     transform: `rotate(${furniture?.rotation}deg)`,
                     transformOrigin: 'center center',
                     transition: isDraggingFurniture && draggedFurnitureId === furniture?.id ? 'none' : 'transform 0.15s ease-out'
@@ -553,7 +553,7 @@ const CanvasArea = forwardRef(function CanvasArea({
                   <AppImage
                     src={furniture?.image}
                     alt={furniture?.alt}
-                    className="w-full h-full object-contain pointer-events-none"
+                    className="w-full h-auto pointer-events-none"
                   />
                   {!isCapturing && selectedFurnitureId === furniture?.id && (
                     <>
@@ -643,6 +643,26 @@ const CanvasArea = forwardRef(function CanvasArea({
               >
                 <Icon name="MinusCircleIcon" size={16} variant="outline" />
               </button>
+              {/* Switch view button — cycles through display images */}
+              {(() => {
+                const catalogItem = placedFurniture.find(f => f.id === selectedFurnitureId);
+                const originalImage = catalogItem?._originalImage || catalogItem?.image;
+                const allImages = [...new Set([originalImage, ...(selectedFurniture?.displayImages || [])].filter(Boolean))];
+                if (allImages.length <= 1) return null;
+                const currentIndex = allImages.indexOf(selectedFurniture?.image);
+                const nextIndex = (currentIndex + 1) % allImages.length;
+                return (
+                  <button
+                    onClick={() => onFurnitureImageChange(selectedFurnitureId, allImages[nextIndex])}
+                    className="h-8 w-full flex items-center justify-center gap-1 rounded-md hover:bg-muted transition-fast sm:h-auto sm:w-auto sm:px-2 sm:py-1.5"
+                    aria-label="Switch view"
+                    title={`View ${currentIndex + 1}/${allImages.length} — click to switch`}
+                  >
+                    <Icon name="ArrowPathRoundedSquareIcon" size={16} variant="outline" />
+                    <span className="font-body text-xs text-muted-foreground hidden sm:inline">{currentIndex + 1}/{allImages.length}</span>
+                  </button>
+                );
+              })()}
               <button
                 onClick={() => onFurnitureDelete(selectedFurnitureId)}
                 className="h-8 w-full flex items-center justify-center rounded-md hover:bg-error/10 text-error transition-fast sm:h-auto sm:w-auto sm:p-2"
@@ -678,6 +698,7 @@ CanvasArea.propTypes = {
   onFurnitureMove: PropTypes?.func?.isRequired,
   onFurnitureRotate: PropTypes?.func?.isRequired,
   onFurnitureScale: PropTypes?.func?.isRequired,
+  onFurnitureImageChange: PropTypes?.func?.isRequired,
   onFurnitureDelete: PropTypes?.func?.isRequired,
   onAddFurniture: PropTypes?.func?.isRequired,
   onCanvasDeselect: PropTypes?.func,

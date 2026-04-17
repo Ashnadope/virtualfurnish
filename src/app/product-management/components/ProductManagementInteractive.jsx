@@ -19,7 +19,7 @@ export default function ProductManagementInteractive({ initialProducts }) {
   const [filters, setFilters] = useState({
     search: searchParams?.get('q') ?? '',
     category: 'All Categories',
-    status: 'All Status',
+    status: 'Active',
     priceRange: 'all'
   });
   const [sortField, setSortField] = useState('name');
@@ -41,7 +41,7 @@ export default function ProductManagementInteractive({ initialProducts }) {
     setFilters({
       search: '',
       category: 'All Categories',
-      status: 'All Status',
+      status: 'Active',
       priceRange: 'all'
     });
     setCurrentPage(1);

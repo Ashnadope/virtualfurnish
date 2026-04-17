@@ -35,6 +35,7 @@ function mapVariant(v) {
     material: v.material,
     weight: v.weight,
     imageUrl: v.image_url,
+    displayImages: v.display_images || [],
     isActive: v.is_active,
     productId: v.product_id,
   };
@@ -81,6 +82,7 @@ export async function POST(request) {
     material: v.material || null,
     weight: v.weight ? String(v.weight) : null,
     image_url: v.image || null,
+    display_images: v.displayImages || [],
   }));
 
   const { data: insertedVariants, error: variantsError } = await supabase

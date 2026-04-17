@@ -45,6 +45,18 @@ export default function CatalogInteractive({ initialProducts = [] }) {
     }
   }, [initialProducts]);
 
+  // Refetch products on mount (covers in-app navigation) and when tab regains focus
+  useEffect(() => {
+    refreshProducts();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshProducts();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
+
   // Fetch ML recommendations whenever the user changes
   useEffect(() => {
     if (!user?.id) return;
@@ -81,6 +93,20 @@ export default function CatalogInteractive({ initialProducts = [] }) {
       setError(err?.message || 'Failed to load products. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Silently refresh products in the background (no loading spinner)
+  const refreshProducts = async () => {
+    try {
+      const result = await productService?.getAllProducts();
+      if (result?.data) {
+        setProducts(result.data);
+        const uniqueCategories = [...new Set(result.data.map(p => p?.category).filter(Boolean))];
+        setCategories(uniqueCategories);
+      }
+    } catch (err) {
+      // Silent refresh — don't show errors
     }
   };
 
